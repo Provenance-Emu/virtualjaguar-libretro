@@ -2764,7 +2764,7 @@ static void generate_func(void)
 		fprintf(stblfile, "{ 0, 0, 0 }};\n");
 	}
 }
-
+#if 0
 int main(int argc, char ** argv)
 {
 	read_table68k();
@@ -2799,3 +2799,4 @@ int main(int argc, char ** argv)
 	free(table68k);
 	return 0;
 }
+#endif
