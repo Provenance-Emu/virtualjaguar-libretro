@@ -23,6 +23,8 @@ uint32_t *videoBuffer        = NULL;
 int game_width               = 0;
 int game_height              = 0;
 
+extern uint16_t eeprom_ram[];
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -231,6 +233,26 @@ static void update_input(void)
 
 }
 
+static void extract_basename(char *buf, const char *path, size_t size)
+{
+   char       *ext  = NULL;
+   const char *base = strrchr(path, '/');
+   if (!base)
+      base = strrchr(path, '\\');
+   if (!base)
+      base = path;
+   
+   if (*base == '\\' || *base == '/')
+      base++;
+   
+   strncpy(buf, base, size - 1);
+   buf[size - 1] = '\0';
+   
+   ext = strrchr(buf, '.');
+   if (ext)
+      *ext = '\0';
+}
+
 /************************************
  * libretro implementation
  ************************************/
@@ -294,7 +316,9 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
+   char slash;
    unsigned i;
+   const char *save_dir = NULL;
    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
 
    struct retro_input_descriptor desc[] = {
@@ -361,7 +385,32 @@ bool retro_load_game(const struct retro_game_info *info)
 
    check_variables();
 
-   //strcpy(vjs.EEPROMPath, "/path/to/eeproms/");   // battery saves
+   // Get eeprom path info
+   // > Handle Windows nonsense...
+#if defined(_WIN32)
+   slash = '\\';
+#else
+   slash = '/';
+#endif
+   // > Get save path
+   vjs.EEPROMPath[0] = '\0';
+   if (environ_cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &save_dir) && save_dir)
+   {
+		if (strlen(save_dir) > 0)
+		{
+			sprintf(vjs.EEPROMPath, "%s%c", save_dir, slash);
+		}
+   }
+   // > Get ROM name
+   if (info->path != NULL)
+   {
+      extract_basename(vjs.romName, info->path, sizeof(vjs.romName));
+   }
+   else
+   {
+      vjs.romName[0] = '\0';
+   }
+   
    JaguarInit();                                             // set up hardware
    memcpy(jagMemSpace + 0xE00000,
          (vjs.biosType == BT_K_SERIES ? jaguarBootROM : jaguarBootROM2),
@@ -414,6 +463,8 @@ void *retro_get_memory_data(unsigned type)
 {
    if(type == RETRO_MEMORY_SYSTEM_RAM)
       return jaguarMainRAM;
+   else if (type == RETRO_MEMORY_SAVE_RAM)
+      return eeprom_ram;
    else return NULL;
 }
 
@@ -421,6 +472,8 @@ size_t retro_get_memory_size(unsigned type)
 {
    if(type == RETRO_MEMORY_SYSTEM_RAM)
       return 0x200000;
+   else if (type == RETRO_MEMORY_SAVE_RAM)
+      return 128;
    else return 0;
 }
 
