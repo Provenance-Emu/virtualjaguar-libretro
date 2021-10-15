@@ -54,10 +54,10 @@ static uint8_t op_blend_cr[0x10000];
 // some of the regular TOM RAM...
 uint8_t objectp_running = 0;
 
-static uint8_t op_bitmap_bit_depth[8] = { 1, 2, 4, 8, 16, 24, 32, 0 };
+static const uint8_t op_bitmap_bit_depth[8] = { 1, 2, 4, 8, 16, 24, 32, 0 };
 static uint32_t op_pointer;
 
-int32_t phraseWidthToPixels[8] = { 64, 32, 16, 8, 4, 2, 0, 0 };
+static const int32_t phraseWidthToPixels[8] = { 64, 32, 16, 8, 4, 2, 0, 0 };
 
 
 //

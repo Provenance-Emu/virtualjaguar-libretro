@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 #include <stdint.h>
-extern uint8_t jaguarBootROM2[];
+extern const uint8_t jaguarBootROM2[0x20000];
 
 #ifdef __cplusplus
 }

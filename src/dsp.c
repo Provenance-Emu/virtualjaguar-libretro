@@ -294,7 +294,7 @@ static uint8_t dsp_opcode_second_parameter;
 #define SET_ZNC_ADD(a,b,r)	SET_N(r); SET_Z(r); SET_C_ADD(a,b)
 #define SET_ZNC_SUB(a,b,r)	SET_N(r); SET_Z(r); SET_C_SUB(a,b)
 
-uint32_t dsp_convert_zero[32] = {
+static const uint32_t dsp_convert_zero[32] = {
 	32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 	17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
 };

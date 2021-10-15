@@ -169,7 +169,7 @@ struct MemDesc {
 };
 
 
-struct MemDesc memoryMap[] = {
+static const struct MemDesc memoryMap[] = {
    { 0x000000, 0x3FFFFF, MM_RAM,  &jaguarMainRAM },
    { 0x800000, 0xDFFEFF, MM_ROM,  &jaguarMainROM },
 
@@ -372,7 +372,7 @@ uint8_t MMURead8(uint32_t address, uint32_t who/*= UNKNOWN*/)
    struct MemDesc memory;
    uint32_t offset;
    uint8_t byte = 0xFE;
-   uint8_t byteShift[8] = { 0, 8, 16, 24, 32, 40, 48, 56 };
+   const uint8_t byteShift[8] = { 0, 8, 16, 24, 32, 40, 48, 56 };
    uint32_t i = 0;
 
    while (true)
