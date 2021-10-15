@@ -274,6 +274,31 @@ extern const char * whoName[10];
 // Some handy macros to help converting native endian to big endian (jaguar native)
 // & vice versa
 
+#if 0 && __APPLE__
+#import <CoreFoundation/CoreFoundation.h>
+#import <endian.h>
+#define SET64(r, a, v)     r[(a)] = ((v) & 0xFF00000000000000) >> 56, r[(a)+1] = ((v) & 0x00FF000000000000) >> 48, \
+                        r[(a)+2] = ((v) & 0x0000FF0000000000) >> 40, r[(a)+3] = ((v) & 0x000000FF00000000) >> 32, \
+                        r[(a)+4] = ((v) & 0xFF000000) >> 24, r[(a)+5] = ((v) & 0x00FF0000) >> 16, \
+                        r[(a)+6] = ((v) & 0x0000FF00) >> 8, r[(a)+7] = (v) & 0x000000FF
+#define GET64(r, a)        (((uint64_t)r[(a)] << 56) | ((uint64_t)r[(a)+1] << 48) | \
+                        ((uint64_t)r[(a)+2] << 40) | ((uint64_t)r[(a)+3] << 32) | \
+                        ((uint64_t)r[(a)+4] << 24) | ((uint64_t)r[(a)+5] << 16) | \
+                        ((uint64_t)r[(a)+6] << 8) | (uint64_t)r[(a)+7])
+#define SET32(r, a, v)    r[(a)] = ((v) & 0xFF000000) >> 24, r[(a)+1] = ((v) & 0x00FF0000) >> 16, \
+                        r[(a)+2] = ((v) & 0x0000FF00) >> 8, r[(a)+3] = (v) & 0x000000FF
+#define GET32(r, a)     Endian32_Swap(r[(a)])  //CFSwapInt32BigToHost((uint32_t)r[(a)]) //   ((r[(a)] << 24) | (r[(a)+1] << 16) | (r[(a)+2] << 8) | r[(a)+3])
+//#define SET16(r, a, v)  memcpy((void*)r[(a)], CFSwapInt16BigToHost(v), sizeof(int16_t))
+#define SET16(r, a, v)    r[(a)] = ((v) & 0xFF00) >> 8, r[(a)+1] = (v) & 0xFF
+#define GET16(r, a)        ((r[(a)] << 8) | r[(a)+1])
+//#define GET16(r, a)     CFSwapInt16BigToHost((int16_t)(r[(a)]))
+//INLINE uint16_t GET16(uint8_t *r, uint16_t a) {
+////    return r[a];
+//    uint16_t v2 = (r[a]);
+//    return CFSwapInt16BigToHost(v2);
+//}
+
+#else
 #define SET64(r, a, v) 	r[(a)] = ((v) & 0xFF00000000000000) >> 56, r[(a)+1] = ((v) & 0x00FF000000000000) >> 48, \
 						r[(a)+2] = ((v) & 0x0000FF0000000000) >> 40, r[(a)+3] = ((v) & 0x000000FF00000000) >> 32, \
 						r[(a)+4] = ((v) & 0xFF000000) >> 24, r[(a)+5] = ((v) & 0x00FF0000) >> 16, \
@@ -287,6 +312,7 @@ extern const char * whoName[10];
 #define GET32(r, a)		((r[(a)] << 24) | (r[(a)+1] << 16) | (r[(a)+2] << 8) | r[(a)+3])
 #define SET16(r, a, v)	r[(a)] = ((v) & 0xFF00) >> 8, r[(a)+1] = (v) & 0xFF
 #define GET16(r, a)		((r[(a)] << 8) | r[(a)+1])
+#endif
 
 #ifdef __cplusplus
 }
