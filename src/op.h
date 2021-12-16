@@ -14,8 +14,8 @@ extern "C" {
 #endif
 
 void OPInit(void);
-void OPReset(void);
-void OPDone(void);
+//void OPReset(void);
+//void OPDone(void);
 
 uint64_t OPLoadPhrase(uint32_t offset);
 
@@ -32,7 +32,7 @@ void OPSetCurrentObject(uint64_t object);
 
 // Exported variables
 
-extern uint8_t objectp_running;
+//extern uint8_t objectp_running;
 
 #ifdef __cplusplus
 }

@@ -130,33 +130,6 @@ static bool start = false;
 
 void M68KInstructionHook(void)
 {
-   unsigned i;
-   uint32_t m68kPC = m68k_get_reg(NULL, M68K_REG_PC);
-
-   // For tracebacks...
-   // Ideally, we'd save all the registers as well...
-   pcQueue[pcQPtr] = m68kPC;
-   a0Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A0);
-   a1Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A1);
-   a2Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A2);
-   a3Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A3);
-   a4Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A4);
-   a5Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A5);
-   a6Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A6);
-   a7Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A7);
-   d0Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D0);
-   d1Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D1);
-   d2Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D2);
-   d3Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D3);
-   d4Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D4);
-   d5Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D5);
-   d6Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D6);
-   d7Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D7);
-   pcQPtr++;
-   pcQPtr &= 0x3FF;
-
-   if (m68kPC & 0x01)		// Oops! We're fetching an odd address!
-      exit(0);
 }
 
 /* Custom UAE 68000 read/write/IRQ functions */
@@ -377,25 +350,6 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
 #endif
 }
 
-/* Disassemble M68K instructions at the given offset */
-
-unsigned int m68k_read_disassembler_8(unsigned int address)
-{
-   return m68k_read_memory_8(address);
-}
-
-
-unsigned int m68k_read_disassembler_16(unsigned int address)
-{
-   return m68k_read_memory_16(address);
-}
-
-
-unsigned int m68k_read_disassembler_32(unsigned int address)
-{
-   return m68k_read_memory_32(address);
-}
-
 uint8_t JaguarReadByte(uint32_t offset, uint32_t who)
 {
    offset &= 0xFFFFFF;
@@ -491,7 +445,7 @@ void JaguarWriteWord(uint32_t offset, uint16_t data, uint32_t who)
       CDROMWriteWord(offset, data, who);
       return;
    }
-   else if (offset >= 0xF00000 && offset <= 0xF0FFFE)
+   else if (__builtin_expect(offset >= 0xF00000 && offset <= 0xF0FFFE, true))
    {
       TOMWriteWord(offset, data, who);
       return;
@@ -665,12 +619,6 @@ void JaguarDone(void)
    TOMDone();
    JERRYDone();
 }
-
-uint8_t * GetRamPtr(void)
-{
-   return jaguarMainRAM;
-}
-
 
 /* New Jaguar execution stack
  * This executes 1 frame's worth of code. */

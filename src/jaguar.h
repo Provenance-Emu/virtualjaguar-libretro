@@ -56,9 +56,6 @@ extern uint32_t jaguarMainROMCRC32, jaguarROMSize, jaguarRunAddress;
 #define ASSERT_LINE		1
 #define CLEAR_LINE		0
 
-//Temp debug stuff (will go away soon, so don't depend on these)
-uint8_t * GetRamPtr(void);
-
 #ifdef __cplusplus
 }
 #endif

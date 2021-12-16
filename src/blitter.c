@@ -1177,14 +1177,14 @@ void BlitterMidsummer2(void)
 
    // Line states passed in via the command register
 
-   bool srcen = (SRCEN), srcenx = (SRCENX), srcenz = (SRCENZ),
+   const bool srcen = (SRCEN), srcenx = (SRCENX), srcenz = (SRCENZ),
         dsten = (DSTEN), dstenz = (DSTENZ), dstwrz = (DSTWRZ), clip_a1 = (CLIPA1),
         upda1 = (UPDA1), upda1f = (UPDA1F), upda2 = (UPDA2), dsta2 = (DSTA2),
         gourd = (GOURD), gourz = (GOURZ), topben = (TOPBEN), topnen = (TOPNEN),
         patdsel = (PATDSEL), adddsel = (ADDDSEL), cmpdst = (CMPDST), bcompen = (BCOMPEN),
         dcompen = (DCOMPEN), bkgwren = (BKGWREN), srcshade = (SRCSHADE);
 
-   uint8_t zmode = (cmd.WORD & 0x01C0000) >> 18, lfufunc = (cmd.WORD & 0x1E00000) >> 21;
+	const uint8_t zmode = (cmd.WORD & 0x01C0000) >> 18, lfufunc = (cmd.WORD & 0x1E00000) >> 21;
    //Missing: BUSHI
    //Where to find various lines:
    // clip_a1  -> inner
@@ -1219,36 +1219,35 @@ void BlitterMidsummer2(void)
 
    // Various registers set up by user
 
-   uint16_t ocount = GET16(blitter_ram, PIXLINECOUNTER);
-   uint8_t a1_pitch = blitter_ram[A1_FLAGS + 3] & 0x03;
-   uint8_t a2_pitch = blitter_ram[A2_FLAGS + 3] & 0x03;
-   uint8_t a1_pixsize = (blitter_ram[A1_FLAGS + 3] & 0x38) >> 3;
-   uint8_t a2_pixsize = (blitter_ram[A2_FLAGS + 3] & 0x38) >> 3;
-   uint8_t a1_zoffset = (GET16(blitter_ram, A1_FLAGS + 2) >> 6) & 0x07;
-   uint8_t a2_zoffset = (GET16(blitter_ram, A2_FLAGS + 2) >> 6) & 0x07;
-   uint8_t a1_width = (blitter_ram[A1_FLAGS + 2] >> 1) & 0x3F;
-   uint8_t a2_width = (blitter_ram[A2_FLAGS + 2] >> 1) & 0x3F;
-   uint8_t a1addx = blitter_ram[A1_FLAGS + 1] & 0x03, a2addx = blitter_ram[A2_FLAGS + 1] & 0x03;
-   bool a1addy = blitter_ram[A1_FLAGS + 1] & 0x04, a2addy = blitter_ram[A2_FLAGS + 1] & 0x04;
-   bool a1xsign = blitter_ram[A1_FLAGS + 1] & 0x08, a2xsign = blitter_ram[A2_FLAGS + 1] & 0x08;
-   bool a1ysign = blitter_ram[A1_FLAGS + 1] & 0x10, a2ysign = blitter_ram[A2_FLAGS + 1] & 0x10;
-   uint32_t a1_base = GET32(blitter_ram, A1_BASE) & 0xFFFFFFF8;	// Phrase aligned by ignoring bottom 3 bits
-   uint32_t a2_base = GET32(blitter_ram, A2_BASE) & 0xFFFFFFF8;
+	uint16_t ocount = GET16(blitter_ram, PIXLINECOUNTER);
+	const    uint8_t a1_pitch = blitter_ram[A1_FLAGS + 3] & 0x03;
+	const   uint8_t a2_pitch = blitter_ram[A2_FLAGS + 3] & 0x03;
+	const   uint8_t a1_pixsize = (blitter_ram[A1_FLAGS + 3] & 0x38) >> 3;
+	const   uint8_t a2_pixsize = (blitter_ram[A2_FLAGS + 3] & 0x38) >> 3;
+	const   uint8_t a1_zoffset = (GET16(blitter_ram, A1_FLAGS + 2) >> 6) & 0x07;
+	const   uint8_t a2_zoffset = (GET16(blitter_ram, A2_FLAGS + 2) >> 6) & 0x07;
+	const   uint8_t a1_width = (blitter_ram[A1_FLAGS + 2] >> 1) & 0x3F;
+	const    uint8_t a2_width = (blitter_ram[A2_FLAGS + 2] >> 1) & 0x3F;
+	const    uint8_t a1addx = blitter_ram[A1_FLAGS + 1] & 0x03, a2addx = blitter_ram[A2_FLAGS + 1] & 0x03;
+	bool a1addy = blitter_ram[A1_FLAGS + 1] & 0x04, a2addy = blitter_ram[A2_FLAGS + 1] & 0x04;const    bool a1xsign = blitter_ram[A1_FLAGS + 1] & 0x08, a2xsign = blitter_ram[A2_FLAGS + 1] & 0x08;
+	const    bool a1ysign = blitter_ram[A1_FLAGS + 1] & 0x10, a2ysign = blitter_ram[A2_FLAGS + 1] & 0x10;
+	const    uint32_t a1_base = GET32(blitter_ram, A1_BASE) & 0xFFFFFFF8;	// Phrase aligned by ignoring bottom 3 bits
+	const    uint32_t a2_base = GET32(blitter_ram, A2_BASE) & 0xFFFFFFF8;
 
-   uint16_t a1_win_x = GET16(blitter_ram, A1_CLIP + 2) & 0x7FFF;
-   uint16_t a1_win_y = GET16(blitter_ram, A1_CLIP + 0) & 0x7FFF;
+	const uint16_t a1_win_x = GET16(blitter_ram, A1_CLIP + 2) & 0x7FFF;
+	const uint16_t a1_win_y = GET16(blitter_ram, A1_CLIP + 0) & 0x7FFF;
    int16_t a1_x = (int16_t)GET16(blitter_ram, A1_PIXEL + 2);
    int16_t a1_y = (int16_t)GET16(blitter_ram, A1_PIXEL + 0);
-   int16_t a1_step_x = (int16_t)GET16(blitter_ram, A1_STEP + 2);
-   int16_t a1_step_y = (int16_t)GET16(blitter_ram, A1_STEP + 0);
-   uint16_t a1_stepf_x = GET16(blitter_ram, A1_FSTEP + 2);
-   uint16_t a1_stepf_y = GET16(blitter_ram, A1_FSTEP + 0);
+	const int16_t a1_step_x = (int16_t)GET16(blitter_ram, A1_STEP + 2);
+	const int16_t a1_step_y = (int16_t)GET16(blitter_ram, A1_STEP + 0);
+	const uint16_t a1_stepf_x = GET16(blitter_ram, A1_FSTEP + 2);
+	const uint16_t a1_stepf_y = GET16(blitter_ram, A1_FSTEP + 0);
    uint16_t a1_frac_x = GET16(blitter_ram, A1_FPIXEL + 2);
    uint16_t a1_frac_y = GET16(blitter_ram, A1_FPIXEL + 0);
-   int16_t a1_inc_x = (int16_t)GET16(blitter_ram, A1_INC + 2);
-   int16_t a1_inc_y = (int16_t)GET16(blitter_ram, A1_INC + 0);
-   uint16_t a1_incf_x = GET16(blitter_ram, A1_FINC + 2);
-   uint16_t a1_incf_y = GET16(blitter_ram, A1_FINC + 0);
+	const int16_t a1_inc_x = (int16_t)GET16(blitter_ram, A1_INC + 2);
+	const int16_t a1_inc_y = (int16_t)GET16(blitter_ram, A1_INC + 0);
+	const uint16_t a1_incf_x = GET16(blitter_ram, A1_FINC + 2);
+	const uint16_t a1_incf_y = GET16(blitter_ram, A1_FINC + 0);
 
    int16_t a2_x = (int16_t)GET16(blitter_ram, A2_PIXEL + 2);
    int16_t a2_y = (int16_t)GET16(blitter_ram, A2_PIXEL + 0);
@@ -1258,8 +1257,8 @@ void BlitterMidsummer2(void)
    uint16_t a2_mask_y = GET16(blitter_ram, A2_MASK + 0);
    uint32_t collision = GET32(blitter_ram, COLLISIONCTRL);// 0=RESUME, 1=ABORT, 2=STOPEN
 #endif
-   int16_t a2_step_x = (int16_t)GET16(blitter_ram, A2_STEP + 2);
-   int16_t a2_step_y = (int16_t)GET16(blitter_ram, A2_STEP + 0);
+	const int16_t a2_step_x = (int16_t)GET16(blitter_ram, A2_STEP + 2);
+	const int16_t a2_step_y = (int16_t)GET16(blitter_ram, A2_STEP + 0);
 
    uint64_t srcd1 = GET64(blitter_ram, SRCDATA);
    uint64_t srcd2 = 0;
@@ -1271,7 +1270,7 @@ void BlitterMidsummer2(void)
    uint64_t dstz = GET64(blitter_ram, DSTZ);
    uint32_t zinc = GET32(blitter_ram, ZINC);
 
-   uint8_t pixsize = (dsta2 ? a2_pixsize : a1_pixsize);	// From ACONTROL
+	const uint8_t pixsize = (dsta2 ? a2_pixsize : a1_pixsize);	// From ACONTROL
 
    bool phrase_mode;
    uint16_t a1FracCInX = 0, a1FracCInY = 0;
@@ -1367,24 +1366,15 @@ void BlitterMidsummer2(void)
 
       // INITIALIZE INTENSITY INTEGER
 
-      if (init_if)
-         init_iii = true;
-      else
-         init_iii = false;
+	   init_iii = init_if;
 
       // INITIALIZE Z FRACTION
 
-      if (init_ii && gourz)
-         init_zfi = true;
-      else
-         init_zfi = false;
+	   init_zfi = (init_ii && gourz);
 
       // INITIALIZE Z INTEGER
 
-      if (init_zf)
-         init_zii = true;
-      else
-         init_zii = false;
+	   init_zii = init_zf;
 
       // Here we move the fooi into their foo counterparts in order to simulate the moving
       // of data into the various FDSYNCs... Each time we loop we simulate one clock cycle...
@@ -1740,9 +1730,9 @@ A2ptrldi	:= NAN2 (a2ptrldi, a2update\, a2pldt);*/
                + dwrite  . srcshade
                */
             daddasel = ((dwrite && gourd) || (dzwrite && gourz) || istepadd || zstepfadd
-                  || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00);
-            daddasel |= ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00);
-            daddasel |= (((gourd || gourz) && !(init_if || init_ii || init_zf || init_zi))
+                  || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00)
+			| ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00)
+            | (((gourd || gourz) && !(init_if || init_ii || init_zf || init_zi))
                   || (dwrite && srcshade) ? 0x04 : 0x00);
             /* Data adder control, input B selection
                0000	Source data
@@ -1772,11 +1762,11 @@ A2ptrldi	:= NAN2 (a2ptrldi, a2update\, a2pldt);*/
                Bit 3 =   istepadd + istepfadd + zstepadd + zstepfadd
                */
             daddbsel = ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
-                  || istepadd || zstepadd || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00);
-            daddbsel |= ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00);
-            daddbsel |= ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
-                  || istepadd || istepfadd || zstepadd || zstepfadd ? 0x04 : 0x00);
-            daddbsel |= (istepadd && istepfadd && zstepadd && zstepfadd ? 0x08 : 0x00);
+                  || istepadd || zstepadd || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00)
+            | ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00)
+            | ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
+                  || istepadd || istepfadd || zstepadd || zstepfadd ? 0x04 : 0x00)
+            | (istepadd && istepfadd && zstepadd && zstepfadd ? 0x08 : 0x00);
             /* Data adder mode control
                000	16-bit normal add
                001	16-bit saturating add with carry
@@ -2841,27 +2831,27 @@ Patdhi		:= JOIN (patdhi, patd[32..63]);*/
 
 /*Lfu		:= LFU (lfu[0..1], srcdlo, srcdhi, dstdlo, dstdhi, lfu_func[0..3]);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-	uint64_t funcmask[2] = { 0, 0xFFFFFFFFFFFFFFFFLL };
-	uint64_t func0 = funcmask[lfu_func & 0x01];
-	uint64_t func1 = funcmask[(lfu_func >> 1) & 0x01];
-	uint64_t func2 = funcmask[(lfu_func >> 2) & 0x01];
-	uint64_t func3 = funcmask[(lfu_func >> 3) & 0x01];
-	uint64_t lfu = (~srcd & ~dstd & func0) | (~srcd & dstd & func1) | (srcd & ~dstd & func2) | (srcd & dstd & func3);
+	static const uint64_t funcmask[2] = { 0, 0xFFFFFFFFFFFFFFFFLL };
+	const uint64_t func0 = funcmask[lfu_func & 0x01];
+	const uint64_t func1 = funcmask[(lfu_func >> 1) & 0x01];
+	const uint64_t func2 = funcmask[(lfu_func >> 2) & 0x01];
+	const uint64_t func3 = funcmask[(lfu_func >> 3) & 0x01];
+	const uint64_t lfu = (~srcd & ~dstd & func0) | (~srcd & dstd & func1) | (srcd & ~dstd & func2) | (srcd & dstd & func3);
    bool mir_bit, mir_byte;
    uint16_t masku;
    uint8_t e_coarse, e_fine;
    uint8_t s_coarse, s_fine;
    uint16_t maskt;
-	uint8_t decl38e[2][8] = { { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
+	static const uint8_t decl38e[2][8] = { { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
 		{ 0xFE, 0xFD, 0xFB, 0xF7, 0xEF, 0xDF, 0xBF, 0x7F } };
-	uint8_t dech38[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
-	uint8_t dech38el[2][8] = { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 },
+	static const uint8_t dech38[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
+	static const uint8_t dech38el[2][8] = { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 },
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
    int en;
    Bits64 cmpd;
 	uint8_t dbinht;
    uint16_t addq[4];
-   uint8_t initcin[4] = { 0, 0, 0, 0 };
+	static const uint8_t initcin[4] = { 0, 0, 0, 0 };
    uint16_t mask;
    uint64_t dmux[4];
    uint64_t ddat;
