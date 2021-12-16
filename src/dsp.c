@@ -233,29 +233,6 @@ void (* dsp_opcode[64])() =
 	dsp_opcode_store_r14_ri,		dsp_opcode_store_r15_ri,		dsp_opcode_illegal,				dsp_opcode_addqmod,
 };
 
-uint32_t dsp_opcode_use[65];
-
-const char * dsp_opcode_str[65]=
-{
-	"add",				"addc",				"addq",				"addqt",
-	"sub",				"subc",				"subq",				"subqt",
-	"neg",				"and",				"or",				"xor",
-	"not",				"btst",				"bset",				"bclr",
-	"mult",				"imult",			"imultn",			"resmac",
-	"imacn",			"div",				"abs",				"sh",
-	"shlq",				"shrq",				"sha",				"sharq",
-	"ror",				"rorq",				"cmp",				"cmpq",
-	"subqmod",			"sat16s",			"move",				"moveq",
-	"moveta",			"movefa",			"movei",			"loadb",
-	"loadw",			"load",				"sat32s",			"load_r14_indexed",
-	"load_r15_indexed",	"storeb",			"storew",			"store",
-	"mirror",			"store_r14_indexed","store_r15_indexed","move_pc",
-	"jump",				"jr",				"mmult",			"mtoi",
-	"normi",			"nop",				"load_r14_ri",		"load_r15_ri",
-	"store_r14_ri",		"store_r15_ri",		"illegal",			"addqmod",
-	"STALL"
-};
-
 uint32_t dsp_pc;
 static uint64_t dsp_acc;								// 40 bit register, NOT 32!
 static uint32_t dsp_remain;
@@ -305,25 +282,9 @@ static uint8_t dsp_ram_8[0x2000];
 
 #define BRANCH_CONDITION(x)		dsp_branch_condition_table[(x) + ((jaguar_flags & 7) << 5)]
 
-static uint32_t dsp_in_exec = 0;
-static uint32_t dsp_releaseTimeSlice_flag = 0;
-
 // Private function prototypes
 
 void FlushDSPPipeline(void);
-
-
-void dsp_reset_stats(void)
-{
-   unsigned i;
-	for(i=0; i<65; i++)
-		dsp_opcode_use[i] = 0;
-}
-
-void DSPReleaseTimeslice(void)
-{
-	dsp_releaseTimeSlice_flag = 1;
-}
 
 void dsp_build_branch_condition_table(void)
 {
@@ -582,7 +543,6 @@ void DSPWriteLong(uint32_t offset, uint32_t data, uint32_t who/*=UNKNOWN*/)
                   if (JERRYIRQEnabled(IRQ2_DSP))
                   {
                      JERRYSetPendingIRQ(IRQ2_DSP);
-                     DSPReleaseTimeslice();
                      m68k_set_irq(2);			// Set 68000 IPL 2...
                   }
                   data &= ~CPUINT;
@@ -591,7 +551,6 @@ void DSPWriteLong(uint32_t offset, uint32_t data, uint32_t who/*=UNKNOWN*/)
                if (data & DSPINT0)
                {
                   m68k_end_timeslice();
-                  DSPReleaseTimeslice();
                   DSPSetIRQLine(DSPIRQ_CPU, ASSERT_LINE);
                   data &= ~DSPINT0;
                }
@@ -607,8 +566,6 @@ void DSPWriteLong(uint32_t offset, uint32_t data, uint32_t who/*=UNKNOWN*/)
                {
                   if (who == M68K)
                      m68k_end_timeslice();
-                  else if (who == DSP)
-                     DSPReleaseTimeslice();
 
                   if (!wasRunning)
                      FlushDSPPipeline();
@@ -812,7 +769,6 @@ void DSPReset(void)
 	dsp_data_organization = 0xFFFFFFFF;
 	dsp_control.WORD      = 0x00002000;				// Report DSP version 2
 	dsp_div_control		  = 0x00000000;
-	dsp_in_exec			  = 0;
 
 	dsp_reg = dsp_reg_bank_0;
 	dsp_alternate_reg = dsp_reg_bank_1;
@@ -823,7 +779,6 @@ void DSPReset(void)
 	CLR_ZNC;
 	IMASKCleared = false;
 	FlushDSPPipeline();
-	dsp_reset_stats();
 
 	// Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
 	for(i=0; i<8192; i+=4)
@@ -845,8 +800,6 @@ INLINE void DSPExec(int32_t cycles)
 		dsp_control &= ~0x10;
 	}
 #endif
-	dsp_releaseTimeSlice_flag = 0;
-	dsp_in_exec++;
 
 	while (cycles > 0 && DSP_RUNNING)
 	{
@@ -868,8 +821,6 @@ INLINE void DSPExec(int32_t cycles)
 
         cycles -= dsp_opcode_cycles[index];
 	}
-
-	dsp_in_exec--;
 }
 
 // DSP opcode handlers
@@ -1689,8 +1640,10 @@ void FlushDSPPipeline(void)
 
 	plPtrFetch = 3, plPtrRead = 2, plPtrExec = 1, plPtrWrite = 0;
 
-	for(i=0; i<4; i++)
-		pipeline[i].opcode = PIPELINE_STALL;
+	pipeline[0].opcode = PIPELINE_STALL;
+	pipeline[1].opcode = PIPELINE_STALL;
+	pipeline[2].opcode = PIPELINE_STALL;
+	pipeline[3].opcode = PIPELINE_STALL;
 
 	for(i=0; i<32; i++)
 		scoreboard[i] = 0;
@@ -2003,9 +1956,8 @@ INLINE static void DSP_jump(void)
 			pipeline[plPtrExec].reg2 = dsp_reg[pipeline[plPtrExec].operand2];
 			pipeline[plPtrExec].writebackRegister = pipeline[plPtrExec].operand2;	// Set it to RN
 		}
-	dsp_pc += 2;	// For DSP_DIS_* accuracy
+		dsp_pc += 2;	// For DSP_DIS_* accuracy
 		DSPOpcode[pipeline[plPtrExec].opcode]();
-//        dsp_opcode_use[pipeline[plPtrExec].opcode]++;
 		pipeline[plPtrWrite] = pipeline[plPtrExec];
 
 		// Step 3: Flush pipeline & set new PC
@@ -2104,7 +2056,7 @@ INLINE static void DSP_mmult(void)
 		for (i = 0; i < count; i++)
 		{
 			int16_t a;
-         int16_t b;
+			int16_t b;
 
 			if (i&0x01)
 				a=(int16_t)((dsp_alternate_reg[dsp_opcode_first_parameter + (i>>1)]>>16)&0xffff);
@@ -2120,7 +2072,7 @@ INLINE static void DSP_mmult(void)
 		for (i = 0; i < count; i++)
 		{
 			int16_t a;
-         int16_t b;
+			int16_t b;
 
 			if (i&0x01)
 				a=(int16_t)((dsp_alternate_reg[dsp_opcode_first_parameter + (i>>1)]>>16)&0xffff);
@@ -2134,7 +2086,7 @@ INLINE static void DSP_mmult(void)
 
 	PRES = res = (int32_t)accum;
 	// carry flag to do
-//NOTE: The flags are set based upon the last add/multiply done...
+	//NOTE: The flags are set based upon the last add/multiply done...
 	SET_ZN(PRES);
 }
 
@@ -2155,8 +2107,8 @@ INLINE static void DSP_movei(void)
 
 INLINE static void DSP_movepc(void)
 {
-//Need to fix this to take into account pipelining effects... !!! FIX !!! [DONE]
-//Account for pipeline effects...
+	//Need to fix this to take into account pipelining effects... !!! FIX !!! [DONE]
+	//Account for pipeline effects...
 	PRES = dsp_pc - 2 - (pipeline[plPtrRead].opcode == 38 ? 6 : (pipeline[plPtrRead].opcode == PIPELINE_STALL ? 0 : 2));
 }
 
