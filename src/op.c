@@ -181,50 +181,6 @@ void OPInit(void)
 //   while (objectType != 4);
 //}
 
-
-void OPDumpObjectList(void)
-{
-   unsigned i;
-
-   for(i=0; i<numberOfObjects; i++)
-   {
-      uint32_t address = object[i];
-
-      uint32_t hi = JaguarReadLong(address + 0, OP);
-      uint32_t lo = JaguarReadLong(address + 4, OP);
-      uint8_t objectType = lo & 0x07;
-      uint32_t link = ((hi << 11) | (lo >> 21)) & 0x3FFFF8;
-      WriteLog("%08X: %08X %08X %s -> $%08X", address, hi, lo, opType[objectType], link);
-
-      if (objectType == 3)
-      {
-         uint16_t ypos = (lo >> 3) & 0x7FF;
-         uint8_t  cc   = (lo >> 14) & 0x07;	// Proper # of bits == 3
-         WriteLog(" YPOS %s %u", ccType[cc], ypos);
-      }
-
-      WriteLog("\n");
-
-      // Yes, this is how the OP finds follow-on phrases for bitmap/scaled
-      // bitmap objects...!
-      if (objectType == 0)
-         DumpFixedObject(OPLoadPhrase(address + 0),
-               OPLoadPhrase(address | 0x08));
-
-      if (objectType == 1)
-         DumpScaledObject(OPLoadPhrase(address + 0),
-               OPLoadPhrase(address | 0x08), OPLoadPhrase(address | 0x10));
-
-      if (address == link)	// Ruh roh...
-      {
-         // Runaway recursive link is bad!
-         WriteLog("***** SELF REFERENTIAL LINK *****\n\n");
-      }
-   }
-
-   WriteLog("\n");
-}
-
 //
 // Object Processor memory access
 // Memory range: F00010 - F00027
