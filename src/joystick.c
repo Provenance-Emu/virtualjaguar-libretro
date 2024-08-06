@@ -20,8 +20,10 @@
 // Global vars
 
 static uint8_t joystick_ram[4];
+
 uint8_t joypad0Buttons[21];
 uint8_t joypad1Buttons[21];
+
 bool audioEnabled     = false;
 bool joysticksEnabled = false;
 

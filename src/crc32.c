@@ -15,7 +15,7 @@
 
 #include "crc32.h"
 
-static unsigned long crctable[256] =
+static uint32_t crctable[256] =
 {
 	0x00000000L, 0x77073096L, 0xEE0E612CL, 0x990951BAL, 0x076DC419L, 0x706AF48FL, 0xE963A535L, 0x9E6495A3L,
 	0x0EDB8832L, 0x79DCB8A4L, 0xE0D5E91EL, 0x97D2D988L, 0x09B64C2BL, 0x7EB17CBDL, 0xE7B82D07L, 0x90BF1D91L,
@@ -52,10 +52,10 @@ static unsigned long crctable[256] =
 };
 
 
-int crc32_calcCheckSum(unsigned char * data, unsigned int length)
+uint32_t crc32_calcCheckSum(unsigned char * data, size_t length)
 {
    unsigned i;
-	unsigned long crc = 0xFFFFFFFF;
+    uint32_t crc = 0xFFFFFFFF;
 
 	for(i = 0; i < length; i++)
 		crc = crctable[(crc ^ *data++) & 0xFF] ^ (crc >> 8);

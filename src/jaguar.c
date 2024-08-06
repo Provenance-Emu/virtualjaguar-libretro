@@ -94,7 +94,8 @@ extern uint8_t jagMemSpace[];
 
 // Internal variables
 
-uint32_t jaguarMainROMCRC32, jaguarROMSize, jaguarRunAddress;
+uint32_t jaguarMainROMCRC32, jaguarRunAddress;
+size_t jaguarROMSize;
 
 bool jaguarCartInserted = false;
 bool lowerField = false;
@@ -496,7 +497,7 @@ void JaguarInit(void)
 {
    unsigned i;
    // For randomizing RAM
-   srand(time(NULL));
+   srand((unsigned int)time(NULL));
 
    // Contents of local RAM are quasi-stable; we simulate this by randomizing RAM contents
    for(i=0; i<0x200000; i+=4)

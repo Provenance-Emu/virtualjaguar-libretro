@@ -35,7 +35,7 @@ static bool libretro_supports_bitmasks = false;
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
 void retro_set_audio_sample(retro_audio_sample_t cb) { (void)cb; }
-void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) { audio_batch_cb = cb; }
+void retro_set_audio_sample_batch_jaguar(retro_audio_sample_batch_t cb) { audio_batch_cb = cb; }
 void retro_set_input_poll(retro_input_poll_t cb) { input_poll_cb = cb; }
 void retro_set_input_state(retro_input_state_t cb) { input_state_cb = cb; }
 
@@ -519,7 +519,7 @@ unsigned retro_api_version(void)
    return RETRO_API_VERSION;
 }
 
-void *retro_get_memory_data(unsigned type)
+void *retro_get_memory_data_jaguar(unsigned type)
 {
    if(type == RETRO_MEMORY_SYSTEM_RAM)
       return jaguarMainRAM;
@@ -528,7 +528,7 @@ void *retro_get_memory_data(unsigned type)
    else return NULL;
 }
 
-size_t retro_get_memory_size(unsigned type)
+size_t retro_get_memory_size_jaguar(unsigned type)
 {
    if(type == RETRO_MEMORY_SYSTEM_RAM)
       return 0x200000;

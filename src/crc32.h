@@ -1,11 +1,13 @@
 #ifndef __CRC32_H__
 #define __CRC32_H__
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int crc32_calcCheckSum(unsigned char * data, unsigned int length);
+uint32_t crc32_calcCheckSum(unsigned char * data, size_t length);
 
 #ifdef __cplusplus
 }

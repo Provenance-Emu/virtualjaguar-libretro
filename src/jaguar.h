@@ -2,6 +2,7 @@
 #define __JAGUAR_H__
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <boolean.h>
 
@@ -39,7 +40,8 @@ extern uint32_t bpmAddress1;
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern uint32_t jaguarMainROMCRC32, jaguarROMSize, jaguarRunAddress;
+extern uint32_t jaguarMainROMCRC32, jaguarRunAddress;
+extern size_t jaguarROMSize;
 #ifdef __cplusplus
 }
 #endif

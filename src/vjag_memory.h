@@ -266,7 +266,7 @@ extern uint8_t * sclk, sstat;
 extern uint32_t * smode;
 
 // Read/write tracing enumeration
-
+#undef DEBUG
 enum { UNKNOWN, JAGUAR, DSP, GPU, TOM, JERRY, M68K, BLITTER, OP, DEBUG };
 extern const char * whoName[10];
 

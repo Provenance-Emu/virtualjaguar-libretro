@@ -1141,7 +1141,7 @@ void BlitterWriteLong(uint32_t offset, uint32_t data, uint32_t who)
 void ADDRGEN(uint32_t *, uint32_t *, bool, bool,
 	uint16_t, uint16_t, uint32_t, uint8_t, uint8_t, uint8_t, uint8_t,
 	uint16_t, uint16_t, uint32_t, uint8_t, uint8_t, uint8_t, uint8_t);
-void ADDARRAY(const uint16_t * addq, const uint8_t daddasel, const uint8_t daddbsel, const uint8_t daddmode,
+void ADDARRAY(uint16_t * addq, const uint8_t daddasel, const uint8_t daddbsel, const uint8_t daddmode,
               const uint64_t dstd, const uint32_t iinc, const uint8_t initcin[], const uint64_t initinc, const uint16_t initpix,
               const uint32_t istep, const uint64_t patd, const uint64_t srcd, const uint64_t srcz1, const uint64_t srcz2,
               const uint32_t zinc, const uint32_t zstep);
@@ -2394,7 +2394,7 @@ void ADDRGEN(uint32_t *address, uint32_t *pixa, bool gena2, bool zaddr,
 ////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-void ADDARRAY(const uint16_t * addq, const uint8_t daddasel, const uint8_t daddbsel, const uint8_t daddmode,
+void ADDARRAY(uint16_t * addq, const uint8_t daddasel, const uint8_t daddbsel, const uint8_t daddmode,
 	const uint64_t dstd, const uint32_t iinc, const uint8_t initcin[], const uint64_t initinc, const uint16_t initpix,
 	const uint32_t istep, const uint64_t patd, const uint64_t srcd, const uint64_t srcz1, const uint64_t srcz2,
 	const uint32_t zinc, const uint32_t zstep)
