@@ -13,8 +13,7 @@
 extern "C" {
 #endif
 
-typedef enum BUTTON
-{
+typedef enum BUTTON {
    BUTTON_FIRST = 0,
    BUTTON_U = 0,
    BUTTON_D = 1,

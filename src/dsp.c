@@ -1769,7 +1769,7 @@ INLINE static void DSP_div(void)
 			dsp_remain = (((uint64_t)_Rn) << 16) % _Rm;
 			if (dsp_remain & 0x80000000)
 				dsp_remain -= _Rm;
-			PRES = (((uint64_t)_Rn) << 16) / _Rm;
+			PRES = (uint32_t)((((uint64_t)_Rn) << 16) / _Rm);
 		}
 		else
 		{

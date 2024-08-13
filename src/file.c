@@ -25,7 +25,7 @@
 #include "vjag_memory.h"
 
 /* Parse the file type based upon file size and/or headers. */
-static uint32_t ParseFileType(uint8_t * buffer, uint32_t size)
+static uint32_t ParseFileType(uint8_t * buffer, size_t size)
 {
    // Check headers first...
 
