@@ -27,6 +27,10 @@
 #include "jaguar.h"
 #include "settings.h"
 
+#if USE_SSE
+#include <emmintrin.h>  // For SSE2 intrinsics
+#endif
+
 // Various conditional compilation goodies...
 
 #define USE_ORIGINAL_BLITTER
@@ -959,7 +963,7 @@ void blitter_blit(uint32_t cmdi)
 
    blitter_generic(cmd.WORD);
 }
-#endif
+#endif // USE_ORIGINAL_BLITTER
 /*******************************************************************************
 ********************** STUFF CUT ABOVE THIS LINE! ******************************
 *******************************************************************************/
@@ -2586,6 +2590,30 @@ INT16/	a1_frac_y
 	:IN);
 INT16/	zero16 :LOCAL;
 BEGIN*/
+
+#if USE_SSE
+
+void ADDBMUX_SIMD(int16_t *addb_x, int16_t *addb_y, uint8_t addbsel,
+                  int16_t a1_x, int16_t a1_y, int16_t a2_x, int16_t a2_y,
+                  int16_t a1_frac_x, int16_t a1_frac_y)
+{
+    // Create vectors for x and y terms
+    __m128i xterms = _mm_set_epi16(0, 0, 0, 0, a1_frac_x, a2_x, a1_x, 0);
+    __m128i yterms = _mm_set_epi16(0, 0, 0, 0, a1_frac_y, a2_y, a1_y, 0);
+
+    // Create a mask based on addbsel
+    int mask = addbsel & 0x03;
+    __m128i shuffle_mask = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, mask*2+1, mask*2);
+
+    // Shuffle the vectors to select the correct terms
+    __m128i result_x = _mm_shuffle_epi8(xterms, shuffle_mask);
+    __m128i result_y = _mm_shuffle_epi8(yterms, shuffle_mask);
+
+    // Store the results
+    *addb_x = _mm_extract_epi16(result_x, 0);
+    *addb_y = _mm_extract_epi16(result_y, 0);
+}
+#else // !USE_SSE
 void ADDBMUX(int16_t *addb_x, int16_t *addb_y, uint8_t addbsel, int16_t a1_x, int16_t a1_y,
 	int16_t a2_x, int16_t a2_y, int16_t a1_frac_x, int16_t a1_frac_y)
 {
@@ -2606,7 +2634,7 @@ Addb_y		:= MX4 (addb_y, a1_y, a2_y, a1_frac_y, zero16, addbselb[0..1]);*/
 
 //END;
 }
-
+#endif // USE_SSE
 
 /**  DATAMUX - Address local data bus selection  ******************
 

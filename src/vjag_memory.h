@@ -272,8 +272,42 @@ extern const char * whoName[10];
 
 // BIOS identification enum
 
+#if USE_SSE
+#include <emmintrin.h>  // For SSE2 intrinsics
+
+#define GET64(r, a) ({ \
+    __m128i vec = _mm_loadu_si128((__m128i*)((r) + (a))); \
+    vec = _mm_shuffle_epi8(vec, _mm_set_epi8(8,9,10,11,12,13,14,15, 0,1,2,3,4,5,6,7)); \
+    _mm_cvtsi128_si64(vec); \
+})
+
+#define SET64(r, a, v) do { \
+    __m128i vec = _mm_set_epi64x(0, (v)); \
+    vec = _mm_shuffle_epi8(vec, _mm_set_epi8(8,9,10,11,12,13,14,15, 0,1,2,3,4,5,6,7)); \
+    _mm_storeu_si128((__m128i*)((r) + (a)), vec); \
+} while(0)
+
+#define SET32(r, a, v) do { \
+    __m128i vec = _mm_set_epi32(0, 0, 0, (v)); \
+    vec = _mm_shuffle_epi8(vec, _mm_set_epi8(0,0,0,0, 0,0,0,0, 0,0,0,0, 12,13,14,15)); \
+    _mm_storeu_si32((r) + (a), vec); \
+} while(0)
+
+#define GET32(r, a) ({ \
+    __m128i vec = _mm_loadu_si32((r) + (a)); \
+    vec = _mm_shuffle_epi8(vec, _mm_set_epi8(0,0,0,0, 0,0,0,0, 0,0,0,0, 12,13,14,15)); \
+    _mm_cvtsi128_si32(vec); \
+})
+
+#define SET16(r, a, v) do { \
+    _mm_storeu_si16((r) + (a), _mm_cvtsi32_si128(v)); \
+} while(0)
+
+#else
+
 // Some handy macros to help converting native endian to big endian (jaguar native)
 // & vice versa
+
 
 #define SET64(r, a, v) 	r[(a)] = ((v) & 0xFF00000000000000) >> 56, r[(a)+1] = ((v) & 0x00FF000000000000) >> 48, \
 						r[(a)+2] = ((v) & 0x0000FF0000000000) >> 40, r[(a)+3] = ((v) & 0x000000FF00000000) >> 32, \
@@ -288,6 +322,7 @@ extern const char * whoName[10];
 #define GET32(r, a)		((r[(a)] << 24) | (r[(a)+1] << 16) | (r[(a)+2] << 8) | r[(a)+3])
 #define SET16(r, a, v)	r[(a)] = ((v) & 0xFF00) >> 8, r[(a)+1] = (v) & 0xFF
 
+#endif
 
 //#ifdef USE_STRUCTS
 //    INLINE static uint16_t GET16(uint8_t* r,uint32_t a) {

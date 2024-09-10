@@ -51,7 +51,28 @@ static uint32_t crctable[256] =
 	0xB3667A2EL, 0xC4614AB8L, 0x5D681B02L, 0x2A6F2B94L, 0xB40BBE37L, 0xC30C8EA1L, 0x5A05DF1BL, 0x2D02EF8DL
 };
 
+#if USE_SSE
+#include <immintrin.h>
+#include <stdint.h>
+#include <stddef.h>
 
+uint32_t crc32_calcCheckSum(const unsigned char *data, size_t length) {
+    uint32_t crc = 0xFFFFFFFF;
+    size_t i;
+
+    // Process 8 bytes at a time using SSE4.2
+    for (i = 0; i + 8 <= length; i += 8) {
+        crc = _mm_crc32_u64(crc, *(uint64_t*)(data + i));
+    }
+
+    // Process remaining bytes
+    for (; i < length; i++) {
+        crc = _mm_crc32_u8(crc, data[i]);
+    }
+
+    return ~crc; // Final XOR
+}
+#else
 uint32_t crc32_calcCheckSum(unsigned char * data, size_t length)
 {
    unsigned i;
@@ -62,3 +83,4 @@ uint32_t crc32_calcCheckSum(unsigned char * data, size_t length)
 
 	return crc ^ 0xFFFFFFFF;
 }
+#endif
