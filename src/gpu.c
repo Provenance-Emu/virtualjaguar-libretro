@@ -177,8 +177,7 @@ static uint32_t gpu_flags;
 static uint32_t gpu_matrix_control;
 static uint32_t gpu_pointer_to_matrix;
 static uint32_t gpu_data_organization;
-static GPUControl gpu_control;
-
+static uint32_t gpu_control;
 static uint32_t gpu_div_control;
 // There is a distinct advantage to having these separated out--there's no need to clear
 // a bit before writing a result. I.e., if the result of an operation leaves a zero in
@@ -193,7 +192,7 @@ static uint32_t gpu_instruction;
 static uint32_t gpu_opcode_first_parameter;
 static uint32_t gpu_opcode_second_parameter;
 
-#define GPU_RUNNING     (gpu_control.bits.b0)
+#define GPU_RUNNING	(gpu_control & 0x01)
 
 #define RM		gpu_reg[gpu_opcode_first_parameter]
 #define RN		gpu_reg[gpu_opcode_second_parameter]
@@ -225,30 +224,6 @@ uint32_t gpu_convert_zero[32] =
 
 uint8_t * branch_condition_table = 0;
 #define BRANCH_CONDITION(x)	branch_condition_table[(x) + ((jaguar_flags & 7) << 5)]
-
-#ifdef DEBUG
-uint32_t gpu_opcode_use[64];
-#endif
-
-const char * gpu_opcode_str[64]=
-{
-	"add",				"addc",				"addq",				"addqt",
-	"sub",				"subc",				"subq",				"subqt",
-	"neg",				"and",				"or",				"xor",
-	"not",				"btst",				"bset",				"bclr",
-	"mult",				"imult",			"imultn",			"resmac",
-	"imacn",			"div",				"abs",				"sh",
-	"shlq",				"shrq",				"sha",				"sharq",
-	"ror",				"rorq",				"cmp",				"cmpq",
-	"sat8",				"sat16",			"move",				"moveq",
-	"moveta",			"movefa",			"movei",			"loadb",
-	"loadw",			"load",				"loadp",			"load_r14_indexed",
-	"load_r15_indexed",	"storeb",			"storew",			"store",
-	"storep",			"store_r14_indexed","store_r15_indexed","move_pc",
-	"jump",				"jr",				"mmult",			"mtoi",
-	"normi",			"nop",				"load_r14_ri",		"load_r15_ri",
-	"store_r14_ri",		"store_r15_ri",		"sat24",			"pack",
-};
 
 static uint32_t gpu_in_exec = 0;
 static uint32_t gpu_releaseTimeSlice_flag = 0;
@@ -320,15 +295,14 @@ uint8_t GPUReadByte(uint32_t offset, uint32_t who/*=UNKNOWN*/)
 }
 
 // GPU word access (read)
-INLINE uint16_t GPUReadWord(uint32_t offset, uint32_t who/*=UNKNOWN*/)
+uint16_t GPUReadWord(uint32_t offset, uint32_t who/*=UNKNOWN*/)
 {
 	if ((offset >= GPU_WORK_RAM_BASE) && (offset < GPU_WORK_RAM_BASE+0x1000))
 	{
-        offset &= 0xFFF;
-        OpCode data;
-        data.Bytes.UBYTE = (uint16_t)gpu_ram_8[offset];
-        data.Bytes.LBYTE = (uint16_t)gpu_ram_8[offset+1];
-        return data.WORD;
+		uint16_t data;
+		offset &= 0xFFF;
+		data    = ((uint16_t)gpu_ram_8[offset] << 8) | (uint16_t)gpu_ram_8[offset+1];
+		return data;
 	}
 	else if ((offset >= GPU_CONTROL_RAM_BASE) && (offset < GPU_CONTROL_RAM_BASE+0x20))
 	{
@@ -350,7 +324,7 @@ INLINE uint16_t GPUReadWord(uint32_t offset, uint32_t who/*=UNKNOWN*/)
 }
 
 // GPU dword access (read)
-INLINE uint32_t GPUReadLong(uint32_t offset, uint32_t who/*=UNKNOWN*/)
+uint32_t GPUReadLong(uint32_t offset, uint32_t who/*=UNKNOWN*/)
 {
 	if (offset >= 0xF02000 && offset <= 0xF020FF)
 	{
@@ -368,33 +342,34 @@ INLINE uint32_t GPUReadLong(uint32_t offset, uint32_t who/*=UNKNOWN*/)
 	{
 		offset &= 0x1F;
 		switch (offset)
-      {
-         case 0x00:
-            gpu_flag_c = (gpu_flag_c ? 1 : 0);
-            gpu_flag_z = (gpu_flag_z ? 1 : 0);
-            gpu_flag_n = (gpu_flag_n ? 1 : 0);
+		{
+			case 0x00:
+				gpu_flag_c = (gpu_flag_c ? 1 : 0);
+				gpu_flag_z = (gpu_flag_z ? 1 : 0);
+				gpu_flag_n = (gpu_flag_n ? 1 : 0);
 
-            gpu_flags = (gpu_flags & 0xFFFFFFF8) | (gpu_flag_n << 2) | (gpu_flag_c << 1) | gpu_flag_z;
+				gpu_flags = (gpu_flags & 0xFFFFFFF8) | (gpu_flag_n << 2) | (gpu_flag_c << 1) | gpu_flag_z;
 
-            return gpu_flags & 0xFFFFC1FF;
-         case 0x04:
-            return gpu_matrix_control;
-         case 0x08:
-            return gpu_pointer_to_matrix;
-         case 0x0C:
-            return gpu_data_organization;
-         case 0x10:
-            return gpu_pc;
-         case 0x14:
-            return gpu_control.WORD;
-         case 0x18:
-            return gpu_hidata;
-         case 0x1C:
-            return gpu_remain;
-         default:								// unaligned long read
-            break;
-      }
-        return 0;
+				return gpu_flags & 0xFFFFC1FF;
+			case 0x04:
+				return gpu_matrix_control;
+			case 0x08:
+				return gpu_pointer_to_matrix;
+			case 0x0C:
+				return gpu_data_organization;
+			case 0x10:
+				return gpu_pc;
+			case 0x14:
+				return gpu_control;
+			case 0x18:
+				return gpu_hidata;
+			case 0x1C:
+				return gpu_remain;
+			default:								// unaligned long read
+				break;
+		}
+
+		return 0;
 	}
 
 	return (JaguarReadWord(offset, who) << 16) | JaguarReadWord(offset + 2, who);
@@ -498,7 +473,7 @@ void GPUWriteLong(uint32_t offset, uint32_t data, uint32_t who/*=UNKNOWN*/)
                gpu_flag_c = (gpu_flags & CARRY_FLAG) >> 1;
                gpu_flag_n = (gpu_flags & NEGA_FLAG) >> 2;
                GPUUpdateRegisterBanks();
-               gpu_control.WORD &= ~((gpu_flags & CINT04FLAGS) >> 3);	// Interrupt latch clear bits
+               gpu_control &= ~((gpu_flags & CINT04FLAGS) >> 3);	// Interrupt latch clear bits
                //Writing here is only an interrupt enable--this approach is just plain wrong!
                //			GPUHandleIRQs();
                //This, however, is A-OK! ;-)
@@ -544,10 +519,11 @@ void GPUWriteLong(uint32_t offset, uint32_t data, uint32_t who/*=UNKNOWN*/)
                {
                   GPUSetIRQLine(0, ASSERT_LINE);
                   m68k_end_timeslice();
+                  DSPReleaseTimeslice();
                   data &= ~0x04;
                }
 
-               gpu_control.WORD = (gpu_control.WORD & 0xF7C0) | (data & (~0xF7C0));
+               gpu_control = (gpu_control & 0xF7C0) | (data & (~0xF7C0));
 
                // if gpu wasn't running but is now running, execute a few cycles
 #ifdef GPU_SINGLE_STEPPING
@@ -603,7 +579,7 @@ void GPUHandleIRQs(void)
       return;
 
    // Get the interrupt latch & enable bits
-   bits = gpu_control.gpuIRQ.irqMask; //(gpu_control >> 6) & 0x1F;
+   bits = (gpu_control >> 6) & 0x1F;
    mask = (gpu_flags >> 4) & 0x1F;
 
    // Bail out if latched interrupts aren't enabled
@@ -642,11 +618,11 @@ void GPUHandleIRQs(void)
 void GPUSetIRQLine(int irqline, int state)
 {
    uint32_t mask = 0x0040 << irqline;
-   gpu_control.WORD &= ~mask;				// Clear the interrupt latch
+   gpu_control &= ~mask;				// Clear the interrupt latch
 
    if (state)
    {
-      gpu_control.WORD |= mask;			// Assert the interrupt latch
+      gpu_control |= mask;			// Assert the interrupt latch
       GPUHandleIRQs();				// And handle the interrupt...
    }
 }
@@ -668,7 +644,7 @@ void GPUReset(void)
    gpu_pointer_to_matrix = 0x00000000;
    gpu_data_organization = 0xFFFFFFFF;
    gpu_pc				  = 0x00F03000;
-   gpu_control.WORD			  = 0x00002800;			// Correctly sets this as TOM Rev. 2
+   gpu_control			  = 0x00002800;			// Correctly sets this as TOM Rev. 2
    gpu_hidata			  = 0x00000000;
    gpu_remain			  = 0x00000000;			// These two registers are RO/WO
    gpu_div_control		  = 0x00000000;
@@ -739,6 +715,7 @@ void GPUExec(int32_t cycles)
       // BIOS hacking
       //GPU: [00F03548] jr      nz,00F03560 (0xd561) (RM=00F03114, RN=00000004) ->     --> JR: Branch taken.
       //GPU: [00F0354C] jump    nz,(r29) (0xd3a1) (RM=00F03314, RN=00000004) -> (RM=00F03314, RN=00000004)
+
       cycles -= gpu_opcode_cycles[index];
    }
 
@@ -1092,8 +1069,8 @@ INLINE static void gpu_opcode_cmpq(void)
 {
    static int32_t sqtable[32] =
    { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1 };
-   const uint32_t r1 = sqtable[IMM_1 & 0x1F]; // I like this better -> (INT8)(jaguar.op >> 2) >> 3;
-	const uint32_t res = RN - r1;
+   uint32_t r1 = sqtable[IMM_1 & 0x1F]; // I like this better -> (INT8)(jaguar.op >> 2) >> 3;
+   uint32_t res = RN - r1;
    SET_ZNC_SUB(RN, r1, res);
 }
 
@@ -1157,7 +1134,7 @@ INLINE static void gpu_opcode_sat24(void)
 INLINE static void gpu_opcode_store_r14_indexed(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[14] + (gpu_convert_zero[IMM_1] << 2);
+   uint32_t address = gpu_reg[14] + (gpu_convert_zero[IMM_1] << 2);
 
    if (address >= 0xF03000 && address <= 0xF03FFF)
       GPUWriteLong(address & 0xFFFFFFFC, RN, GPU);
@@ -1172,7 +1149,7 @@ INLINE static void gpu_opcode_store_r14_indexed(void)
 INLINE static void gpu_opcode_store_r15_indexed(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[15] + (gpu_convert_zero[IMM_1] << 2);
+   uint32_t address = gpu_reg[15] + (gpu_convert_zero[IMM_1] << 2);
 
    if (address >= 0xF03000 && address <= 0xF03FFF)
       GPUWriteLong(address & 0xFFFFFFFC, RN, GPU);
@@ -1187,7 +1164,7 @@ INLINE static void gpu_opcode_store_r15_indexed(void)
 INLINE static void gpu_opcode_load_r14_ri(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[14] + RM;
+   uint32_t address = gpu_reg[14] + RM;
 
    if (address >= 0xF03000 && address <= 0xF03FFF)
       RN = GPUReadLong(address & 0xFFFFFFFC, GPU);
@@ -1202,7 +1179,7 @@ INLINE static void gpu_opcode_load_r14_ri(void)
 INLINE static void gpu_opcode_load_r15_ri(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[15] + RM;
+   uint32_t address = gpu_reg[15] + RM;
 
    if (address >= 0xF03000 && address <= 0xF03FFF)
       RN = GPUReadLong(address & 0xFFFFFFFC, GPU);
@@ -1217,7 +1194,7 @@ INLINE static void gpu_opcode_load_r15_ri(void)
 INLINE static void gpu_opcode_store_r14_ri(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[14] + RM;
+   uint32_t address = gpu_reg[14] + RM;
 
    if (address >= 0xF03000 && address <= 0xF03FFF)
       GPUWriteLong(address & 0xFFFFFFFC, RN, GPU);
@@ -1251,7 +1228,7 @@ INLINE static void gpu_opcode_nop(void)
 
 INLINE static void gpu_opcode_pack(void)
 {
-	const uint32_t val = RN;
+   uint32_t val = RN;
 
    if (IMM_1 == 0)				// Pack
       RN = ((val >> 10) & 0x0000F000) | ((val >> 5) & 0x00000F00) | (val & 0x000000FF);
@@ -1394,7 +1371,7 @@ INLINE static void gpu_opcode_loadp(void)
 INLINE static void gpu_opcode_load_r14_indexed(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[14] + (gpu_convert_zero[IMM_1] << 2);
+   uint32_t address = gpu_reg[14] + (gpu_convert_zero[IMM_1] << 2);
 
    if ((RM >= 0xF03000) && (RM <= 0xF03FFF))
       RN = GPUReadLong(address & 0xFFFFFFFC, GPU);
@@ -1409,7 +1386,7 @@ INLINE static void gpu_opcode_load_r14_indexed(void)
 INLINE static void gpu_opcode_load_r15_indexed(void)
 {
 #ifdef GPU_CORRECT_ALIGNMENT
-	const uint32_t address = gpu_reg[15] + (gpu_convert_zero[IMM_1] << 2);
+   uint32_t address = gpu_reg[15] + (gpu_convert_zero[IMM_1] << 2);
 
    if ((RM >= 0xF03000) && (RM <= 0xF03FFF))
       RN = GPUReadLong(address & 0xFFFFFFFC, GPU);
@@ -1489,7 +1466,7 @@ INLINE static void gpu_opcode_btst(void)
 
 INLINE static void gpu_opcode_bset(void)
 {
-	const uint32_t res = RN | (1 << IMM_1);
+   uint32_t res = RN | (1 << IMM_1);
    RN = res;
    SET_ZN(res);
 }
@@ -1497,23 +1474,23 @@ INLINE static void gpu_opcode_bset(void)
 
 INLINE static void gpu_opcode_imacn(void)
 {
-	const uint32_t res = (int16_t)RM * (int16_t)(RN);
+   uint32_t res = (int16_t)RM * (int16_t)(RN);
    gpu_acc += res;
 }
 
 
 INLINE static void gpu_opcode_mtoi(void)
 {
-	const uint32_t _RM = RM;
-	const uint32_t res = RN = (((int32_t)_RM >> 8) & 0xFF800000) | (_RM & 0x007FFFFF);
+   uint32_t _RM = RM;
+   uint32_t res = RN = (((int32_t)_RM >> 8) & 0xFF800000) | (_RM & 0x007FFFFF);
    SET_ZN(res);
 }
 
 
 INLINE static void gpu_opcode_normi(void)
 {
-	uint32_t _RM = RM;
-	uint32_t res = 0;
+   uint32_t _RM = RM;
+   uint32_t res = 0;
 
    if (_RM)
    {
@@ -1535,7 +1512,7 @@ INLINE static void gpu_opcode_normi(void)
 INLINE static void gpu_opcode_mmult(void)
 {
    unsigned i;
-	const int count	= gpu_matrix_control & 0x0F;	// Matrix width
+   int count	= gpu_matrix_control & 0x0F;	// Matrix width
    uint32_t addr = gpu_pointer_to_matrix;		// In the GPU's RAM
    int64_t accum = 0;
    uint32_t res;
@@ -1595,42 +1572,33 @@ INLINE static void gpu_opcode_abs(void)
 
 INLINE static void gpu_opcode_div(void)	// RN / RM
 {
-    
    unsigned i;
    // Real algorithm, courtesy of SCPCD: NYAN!
-    Bits32 q;
-    q.WORD =  RN;
-    
-    Bits32 r;
-    r.WORD = 0;
+   uint32_t q = RN;
+   uint32_t r = 0;
 
    // If 16.16 division, stuff top 16 bits of RN into remainder and put the
    // bottom 16 of RN in top 16 of quotient
-    if (gpu_div_control & 0x01) {
-        r.WORD = q.words.UWORD;
-        q.words.UWORD = q.words.LWORD;
-        q.words.LWORD = 0;
-    }
+   if (gpu_div_control & 0x01)
+      q <<= 16, r = RN >> 16;
 
-	#define repeat32(s) s s s s s s s s s s s s s s s s s s s s s s s s s s s s s s s s
-//   for(i=0; i<32; i++)
-//   {
-	uint32_t sign;
-	repeat32(
-      sign = r.bits.b31;
-      r.WORD = (r.WORD << 1) | q.bits.b31;
-      r.WORD += (sign ? RM : -RM);
-      q.WORD = (q.WORD << 1) | !r.bits.b31; )
-			 // (((~r) >> 31) & 0x01);
-//   }
+   for(i=0; i<32; i++)
+   {
+      uint32_t sign = r & 0x80000000;
+      r = (r << 1) | ((q >> 31) & 0x01);
+      r += (sign ? RM : -RM);
+      q = (q << 1) | (((~r) >> 31) & 0x01);
+   }
 
-   RN = q.WORD;
-   gpu_remain = r.WORD;
+   RN = q;
+   gpu_remain = r;
+
 }
+
 
 INLINE static void gpu_opcode_imultn(void)
 {
-	const uint32_t res = (int32_t)((int16_t)RN * (int16_t)RM);
+   uint32_t res = (int32_t)((int16_t)RN * (int16_t)RM);
    gpu_acc = (int32_t)res;
    SET_FLAG_Z(res);
    SET_FLAG_N(res);
@@ -1639,7 +1607,7 @@ INLINE static void gpu_opcode_imultn(void)
 
 INLINE static void gpu_opcode_neg(void)
 {
-	const uint32_t res = -RN;
+   uint32_t res = -RN;
    SET_ZNC_SUB(0, RN, res);
    RN = res;
 }
@@ -1647,8 +1615,8 @@ INLINE static void gpu_opcode_neg(void)
 
 INLINE static void gpu_opcode_shlq(void)
 {
-	const int32_t r1 = 32 - IMM_1;
-	const uint32_t res = RN << r1;
+   int32_t r1 = 32 - IMM_1;
+   uint32_t res = RN << r1;
    SET_ZN(res); gpu_flag_c = (RN >> 31) & 1;
    RN = res;
 }
@@ -1656,8 +1624,8 @@ INLINE static void gpu_opcode_shlq(void)
 
 INLINE static void gpu_opcode_shrq(void)
 {
-	const int32_t r1 = gpu_convert_zero[IMM_1];
-	const uint32_t res = RN >> r1;
+   int32_t r1 = gpu_convert_zero[IMM_1];
+   uint32_t res = RN >> r1;
    SET_ZN(res); gpu_flag_c = RN & 1;
    RN = res;
 }
@@ -1665,8 +1633,8 @@ INLINE static void gpu_opcode_shrq(void)
 
 INLINE static void gpu_opcode_ror(void)
 {
-	const uint32_t r1 = RM & 0x1F;
-	const uint32_t res = (RN >> r1) | (RN << (32 - r1));
+   uint32_t r1 = RM & 0x1F;
+   uint32_t res = (RN >> r1) | (RN << (32 - r1));
    SET_ZN(res); gpu_flag_c = (RN >> 31) & 1;
    RN = res;
 }
@@ -1674,9 +1642,9 @@ INLINE static void gpu_opcode_ror(void)
 
 INLINE static void gpu_opcode_rorq(void)
 {
-	const uint32_t r1 = gpu_convert_zero[IMM_1 & 0x1F];
-	const uint32_t r2 = RN;
-	const uint32_t res = (r2 >> r1) | (r2 << (32 - r1));
+   uint32_t r1 = gpu_convert_zero[IMM_1 & 0x1F];
+   uint32_t r2 = RN;
+   uint32_t res = (r2 >> r1) | (r2 << (32 - r1));
    RN = res;
    SET_ZN(res); gpu_flag_c = (r2 >> 31) & 0x01;
 }
@@ -1703,7 +1671,7 @@ INLINE static void gpu_opcode_sha(void)
 
 INLINE static void gpu_opcode_sharq(void)
 {
-	const uint32_t res = (int32_t)RN >> gpu_convert_zero[IMM_1];
+   uint32_t res = (int32_t)RN >> gpu_convert_zero[IMM_1];
    SET_ZN(res); gpu_flag_c = RN & 0x01;
    RN = res;
 }

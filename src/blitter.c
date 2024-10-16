@@ -90,41 +90,41 @@ void BlitterMidsummer2(void);
 
 // Blitter command bits
 
-#define SRCEN			(cmd.bits.b0)
-#define SRCENZ			(cmd.bits.b1)
-#define SRCENX			(cmd.bits.b2)
-#define DSTEN			(cmd.bits.b3)
-#define DSTENZ			(cmd.bits.b4)
-#define DSTWRZ			(cmd.bits.b5)
-#define CLIPA1			(cmd.bits.b6)
+#define SRCEN			(cmd & 0x00000001)
+#define SRCENZ			(cmd & 0x00000002)
+#define SRCENX			(cmd & 0x00000004)
+#define DSTEN			(cmd & 0x00000008)
+#define DSTENZ			(cmd & 0x00000010)
+#define DSTWRZ			(cmd & 0x00000020)
+#define CLIPA1			(cmd & 0x00000040)
 
-#define UPDA1F			(cmd.bits.b8)
-#define UPDA1			(cmd.bits.b9)
-#define UPDA2			(cmd.bits.b10)
+#define UPDA1F			(cmd & 0x00000100)
+#define UPDA1			(cmd & 0x00000200)
+#define UPDA2			(cmd & 0x00000400)
 
-#define DSTA2			(cmd.bits.b11)
+#define DSTA2			(cmd & 0x00000800)
 
-#define Z_OP_INF		(cmd.bits.b18)
-#define Z_OP_EQU		(cmd.bits.b19)
-#define Z_OP_SUP		(cmd.bits.b20)
+#define Z_OP_INF		(cmd & 0x00040000)
+#define Z_OP_EQU		(cmd & 0x00080000)
+#define Z_OP_SUP		(cmd & 0x00100000)
 
-#define LFU_NAN		    (cmd.bits.b21)
-#define LFU_NA			(cmd.bits.b22)
-#define LFU_AN			(cmd.bits.b23)
-#define LFU_A			(cmd.bits.b24)
+#define LFU_NAN		(cmd & 0x00200000)
+#define LFU_NA			(cmd & 0x00400000)
+#define LFU_AN			(cmd & 0x00800000)
+#define LFU_A			(cmd & 0x01000000)
 
-#define CMPDST			(cmd.bits.b25)
-#define BCOMPEN		    (cmd.bits.b26)
-#define DCOMPEN		    (cmd.bits.b27)
+#define CMPDST			(cmd & 0x02000000)
+#define BCOMPEN		(cmd & 0x04000000)
+#define DCOMPEN		(cmd & 0x08000000)
 
-#define PATDSEL		    (cmd.bits.b16)
-#define ADDDSEL		    (cmd.bits.b17)
-#define TOPBEN			(cmd.bits.b14)
-#define TOPNEN			(cmd.bits.b15)
-#define BKGWREN		    (cmd.bits.b28)
-#define GOURD			(cmd.bits.b12)
-#define GOURZ			(cmd.bits.b13)
-#define SRCSHADE		(cmd.bits.b30)
+#define PATDSEL		(cmd & 0x00010000)
+#define ADDDSEL		(cmd & 0x00020000)
+#define TOPBEN			(cmd & 0x00004000)
+#define TOPNEN			(cmd & 0x00008000)
+#define BKGWREN		(cmd & 0x10000000)
+#define GOURD			(cmd & 0x00001000)
+#define GOURZ			(cmd & 0x00002000)
+#define SRCSHADE		(cmd & 0x40000000)
 
 
 #define XADDPHR      0
@@ -308,11 +308,8 @@ static int32_t a1_clip_x, a1_clip_y;
 // to optimize the blitter, then we may revisit it in the future...
 
 // Generic blit handler
-void blitter_generic(uint32_t cmdi)
+void blitter_generic(uint32_t cmd)
 {
-    Bits32 cmd;
-    cmd.WORD = cmdi;
-    
    uint32_t srcdata, srczdata, dstdata, dstzdata, writedata, inhibit;
    uint32_t bppSrc = (DSTA2 ? 1 << ((REG(A1_FLAGS) >> 3) & 0x07) : 1 << ((REG(A2_FLAGS) >> 3) & 0x07));
 
@@ -344,14 +341,14 @@ void blitter_generic(uint32_t cmdi)
 
                if (SRCENZ)
                   srczdata = READ_ZDATA(a2, REG(A2_FLAGS));
-               else if (cmd.WORD & 0x0001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
+               else if (cmd & 0x0001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
                   srczdata = READ_RDATA(SRCZINT, a2, REG(A2_FLAGS), a2_phrase_mode);
             }
             else	// Use SRCDATA register...
             {
                srcdata = READ_RDATA(SRCDATA, a2, REG(A2_FLAGS), a2_phrase_mode);
 
-               if (cmd.WORD & 0x0001C020)		// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
+               if (cmd & 0x0001C020)		// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
                   srczdata = READ_RDATA(SRCZINT, a2, REG(A2_FLAGS), a2_phrase_mode);
             }
 
@@ -522,13 +519,13 @@ void blitter_generic(uint32_t cmdi)
                srcdata = READ_PIXEL(a1, REG(A1_FLAGS));
                if (SRCENZ)
                   srczdata = READ_ZDATA(a1, REG(A1_FLAGS));
-               else if (cmd.WORD & 0x0001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
+               else if (cmd & 0x0001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
                   srczdata = READ_RDATA(SRCZINT, a1, REG(A1_FLAGS), a1_phrase_mode);
             }
             else
             {
                srcdata = READ_RDATA(SRCDATA, a1, REG(A1_FLAGS), a1_phrase_mode);
-               if (cmd.WORD & 0x001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
+               if (cmd & 0x001C020)	// PATDSEL | TOPBEN | TOPNEN | DSTWRZ
                   srczdata = READ_RDATA(SRCZINT, a1, REG(A1_FLAGS), a1_phrase_mode);
             }
 
@@ -762,23 +759,20 @@ void blitter_generic(uint32_t cmdi)
    WREG(A2_PIXEL,  (a2_y & 0xFFFF0000) | ((a2_x >> 16) & 0xFFFF));
 }
 
-void blitter_blit(uint32_t cmdi)
+void blitter_blit(uint32_t cmd)
 {
-    Bits32 cmd;
-    cmd.WORD = cmdi;
-    
    uint32_t m, e;
    uint32_t pitchValue[4] = { 0, 1, 3, 2 };
    colour_index = 0;
-   src = cmd.WORD & 0x07;
-   dst = (cmd.WORD >> 3) & 0x07;
-   misc = (cmd.WORD >> 6) & 0x03;
-   a1ctl = (cmd.WORD >> 8) & 0x7;
-   mode = (cmd.WORD >> 11) & 0x07;
-   ity = (cmd.WORD >> 14) & 0x0F;
-   zop = (cmd.WORD >> 18) & 0x07;
-   op = (cmd.WORD >> 21) & 0x0F;
-   ctrl = (cmd.WORD >> 25) & 0x3F;
+   src = cmd & 0x07;
+   dst = (cmd >> 3) & 0x07;
+   misc = (cmd >> 6) & 0x03;
+   a1ctl = (cmd >> 8) & 0x7;
+   mode = (cmd >> 11) & 0x07;
+   ity = (cmd >> 14) & 0x0F;
+   zop = (cmd >> 18) & 0x07;
+   op = (cmd >> 21) & 0x0F;
+   ctrl = (cmd >> 25) & 0x3F;
 
    // Addresses in A1/2_BASE are *phrase* aligned, i.e., bottom three bits are ignored!
    // NOTE: This fixes Rayman's bad collision detection AND keeps T2K working!
@@ -961,7 +955,7 @@ void blitter_blit(uint32_t cmdi)
          gd_ca = 0xFFFFFF00 | gd_ca;
    }
 
-   blitter_generic(cmd.WORD);
+   blitter_generic(cmd);
 }
 #endif // USE_ORIGINAL_BLITTER
 /*******************************************************************************
@@ -1122,11 +1116,10 @@ void BlitterWriteWord(uint32_t offset, uint16_t data, uint32_t who/*=UNKNOWN*/)
 	// I.e., the second write of 32-bit value--not convinced this is the best way to do this!
 	// But then again, according to the Jaguar docs, this is correct...!
 	{
-        if (vjs.useFastBlitter) {
-            blitter_blit(GET32(blitter_ram, 0x38));
-        } else {
-            BlitterMidsummer2();
-        }
+		if (vjs.useFastBlitter)
+			blitter_blit(GET32(blitter_ram, 0x38));
+		else
+			BlitterMidsummer2();
 	}
 }
 //F02278,9,A,B
@@ -1176,19 +1169,18 @@ void BlitterMidsummer2(void)
    //Will remove stuff that isn't in Jaguar I once fully described (stuff like texture won't
    //be described here at all)...
 
-    Bits32 cmd;
-    cmd.WORD = GET32(blitter_ram, COMMAND);
+   uint32_t cmd = GET32(blitter_ram, COMMAND);
 
    // Line states passed in via the command register
 
-   const bool srcen = (SRCEN), srcenx = (SRCENX), srcenz = (SRCENZ),
+   bool srcen = (SRCEN), srcenx = (SRCENX), srcenz = (SRCENZ),
         dsten = (DSTEN), dstenz = (DSTENZ), dstwrz = (DSTWRZ), clip_a1 = (CLIPA1),
         upda1 = (UPDA1), upda1f = (UPDA1F), upda2 = (UPDA2), dsta2 = (DSTA2),
         gourd = (GOURD), gourz = (GOURZ), topben = (TOPBEN), topnen = (TOPNEN),
         patdsel = (PATDSEL), adddsel = (ADDDSEL), cmpdst = (CMPDST), bcompen = (BCOMPEN),
         dcompen = (DCOMPEN), bkgwren = (BKGWREN), srcshade = (SRCSHADE);
 
-	const uint8_t zmode = (cmd.WORD & 0x01C0000) >> 18, lfufunc = (cmd.WORD & 0x1E00000) >> 21;
+   uint8_t zmode = (cmd & 0x01C0000) >> 18, lfufunc = (cmd & 0x1E00000) >> 21;
    //Missing: BUSHI
    //Where to find various lines:
    // clip_a1  -> inner
@@ -1223,35 +1215,36 @@ void BlitterMidsummer2(void)
 
    // Various registers set up by user
 
-	uint16_t ocount = GET16(blitter_ram, PIXLINECOUNTER);
-	const    uint8_t a1_pitch = blitter_ram[A1_FLAGS + 3] & 0x03;
-	const   uint8_t a2_pitch = blitter_ram[A2_FLAGS + 3] & 0x03;
-	const   uint8_t a1_pixsize = (blitter_ram[A1_FLAGS + 3] & 0x38) >> 3;
-	const   uint8_t a2_pixsize = (blitter_ram[A2_FLAGS + 3] & 0x38) >> 3;
-	const   uint8_t a1_zoffset = (GET16(blitter_ram, A1_FLAGS + 2) >> 6) & 0x07;
-	const   uint8_t a2_zoffset = (GET16(blitter_ram, A2_FLAGS + 2) >> 6) & 0x07;
-	const   uint8_t a1_width = (blitter_ram[A1_FLAGS + 2] >> 1) & 0x3F;
-	const    uint8_t a2_width = (blitter_ram[A2_FLAGS + 2] >> 1) & 0x3F;
-	const    uint8_t a1addx = blitter_ram[A1_FLAGS + 1] & 0x03, a2addx = blitter_ram[A2_FLAGS + 1] & 0x03;
-	bool a1addy = blitter_ram[A1_FLAGS + 1] & 0x04, a2addy = blitter_ram[A2_FLAGS + 1] & 0x04;const    bool a1xsign = blitter_ram[A1_FLAGS + 1] & 0x08, a2xsign = blitter_ram[A2_FLAGS + 1] & 0x08;
-	const    bool a1ysign = blitter_ram[A1_FLAGS + 1] & 0x10, a2ysign = blitter_ram[A2_FLAGS + 1] & 0x10;
-	const    uint32_t a1_base = GET32(blitter_ram, A1_BASE) & 0xFFFFFFF8;	// Phrase aligned by ignoring bottom 3 bits
-	const    uint32_t a2_base = GET32(blitter_ram, A2_BASE) & 0xFFFFFFF8;
+   uint16_t ocount = GET16(blitter_ram, PIXLINECOUNTER);
+   uint8_t a1_pitch = blitter_ram[A1_FLAGS + 3] & 0x03;
+   uint8_t a2_pitch = blitter_ram[A2_FLAGS + 3] & 0x03;
+   uint8_t a1_pixsize = (blitter_ram[A1_FLAGS + 3] & 0x38) >> 3;
+   uint8_t a2_pixsize = (blitter_ram[A2_FLAGS + 3] & 0x38) >> 3;
+   uint8_t a1_zoffset = (GET16(blitter_ram, A1_FLAGS + 2) >> 6) & 0x07;
+   uint8_t a2_zoffset = (GET16(blitter_ram, A2_FLAGS + 2) >> 6) & 0x07;
+   uint8_t a1_width = (blitter_ram[A1_FLAGS + 2] >> 1) & 0x3F;
+   uint8_t a2_width = (blitter_ram[A2_FLAGS + 2] >> 1) & 0x3F;
+   uint8_t a1addx = blitter_ram[A1_FLAGS + 1] & 0x03, a2addx = blitter_ram[A2_FLAGS + 1] & 0x03;
+   bool a1addy = blitter_ram[A1_FLAGS + 1] & 0x04, a2addy = blitter_ram[A2_FLAGS + 1] & 0x04;
+   bool a1xsign = blitter_ram[A1_FLAGS + 1] & 0x08, a2xsign = blitter_ram[A2_FLAGS + 1] & 0x08;
+   bool a1ysign = blitter_ram[A1_FLAGS + 1] & 0x10, a2ysign = blitter_ram[A2_FLAGS + 1] & 0x10;
+   uint32_t a1_base = GET32(blitter_ram, A1_BASE) & 0xFFFFFFF8;	// Phrase aligned by ignoring bottom 3 bits
+   uint32_t a2_base = GET32(blitter_ram, A2_BASE) & 0xFFFFFFF8;
 
-	const uint16_t a1_win_x = GET16(blitter_ram, A1_CLIP + 2) & 0x7FFF;
-	const uint16_t a1_win_y = GET16(blitter_ram, A1_CLIP + 0) & 0x7FFF;
+   uint16_t a1_win_x = GET16(blitter_ram, A1_CLIP + 2) & 0x7FFF;
+   uint16_t a1_win_y = GET16(blitter_ram, A1_CLIP + 0) & 0x7FFF;
    int16_t a1_x = (int16_t)GET16(blitter_ram, A1_PIXEL + 2);
    int16_t a1_y = (int16_t)GET16(blitter_ram, A1_PIXEL + 0);
-	const int16_t a1_step_x = (int16_t)GET16(blitter_ram, A1_STEP + 2);
-	const int16_t a1_step_y = (int16_t)GET16(blitter_ram, A1_STEP + 0);
-	const uint16_t a1_stepf_x = GET16(blitter_ram, A1_FSTEP + 2);
-	const uint16_t a1_stepf_y = GET16(blitter_ram, A1_FSTEP + 0);
+   int16_t a1_step_x = (int16_t)GET16(blitter_ram, A1_STEP + 2);
+   int16_t a1_step_y = (int16_t)GET16(blitter_ram, A1_STEP + 0);
+   uint16_t a1_stepf_x = GET16(blitter_ram, A1_FSTEP + 2);
+   uint16_t a1_stepf_y = GET16(blitter_ram, A1_FSTEP + 0);
    uint16_t a1_frac_x = GET16(blitter_ram, A1_FPIXEL + 2);
    uint16_t a1_frac_y = GET16(blitter_ram, A1_FPIXEL + 0);
-	const int16_t a1_inc_x = (int16_t)GET16(blitter_ram, A1_INC + 2);
-	const int16_t a1_inc_y = (int16_t)GET16(blitter_ram, A1_INC + 0);
-	const uint16_t a1_incf_x = GET16(blitter_ram, A1_FINC + 2);
-	const uint16_t a1_incf_y = GET16(blitter_ram, A1_FINC + 0);
+   int16_t a1_inc_x = (int16_t)GET16(blitter_ram, A1_INC + 2);
+   int16_t a1_inc_y = (int16_t)GET16(blitter_ram, A1_INC + 0);
+   uint16_t a1_incf_x = GET16(blitter_ram, A1_FINC + 2);
+   uint16_t a1_incf_y = GET16(blitter_ram, A1_FINC + 0);
 
    int16_t a2_x = (int16_t)GET16(blitter_ram, A2_PIXEL + 2);
    int16_t a2_y = (int16_t)GET16(blitter_ram, A2_PIXEL + 0);
@@ -1261,8 +1254,8 @@ void BlitterMidsummer2(void)
    uint16_t a2_mask_y = GET16(blitter_ram, A2_MASK + 0);
    uint32_t collision = GET32(blitter_ram, COLLISIONCTRL);// 0=RESUME, 1=ABORT, 2=STOPEN
 #endif
-	const int16_t a2_step_x = (int16_t)GET16(blitter_ram, A2_STEP + 2);
-	const int16_t a2_step_y = (int16_t)GET16(blitter_ram, A2_STEP + 0);
+   int16_t a2_step_x = (int16_t)GET16(blitter_ram, A2_STEP + 2);
+   int16_t a2_step_y = (int16_t)GET16(blitter_ram, A2_STEP + 0);
 
    uint64_t srcd1 = GET64(blitter_ram, SRCDATA);
    uint64_t srcd2 = 0;
@@ -1274,7 +1267,7 @@ void BlitterMidsummer2(void)
    uint64_t dstz = GET64(blitter_ram, DSTZ);
    uint32_t zinc = GET32(blitter_ram, ZINC);
 
-	const uint8_t pixsize = (dsta2 ? a2_pixsize : a1_pixsize);	// From ACONTROL
+   uint8_t pixsize = (dsta2 ? a2_pixsize : a1_pixsize);	// From ACONTROL
 
    bool phrase_mode;
    uint16_t a1FracCInX = 0, a1FracCInY = 0;
@@ -1370,15 +1363,24 @@ void BlitterMidsummer2(void)
 
       // INITIALIZE INTENSITY INTEGER
 
-	   init_iii = init_if;
+      if (init_if)
+         init_iii = true;
+      else
+         init_iii = false;
 
       // INITIALIZE Z FRACTION
 
-	   init_zfi = (init_ii && gourz);
+      if (init_ii && gourz)
+         init_zfi = true;
+      else
+         init_zfi = false;
 
       // INITIALIZE Z INTEGER
 
-	   init_zii = init_zf;
+      if (init_zf)
+         init_zii = true;
+      else
+         init_zii = false;
 
       // Here we move the fooi into their foo counterparts in order to simulate the moving
       // of data into the various FDSYNCs... Each time we loop we simulate one clock cycle...
@@ -1734,9 +1736,9 @@ A2ptrldi	:= NAN2 (a2ptrldi, a2update\, a2pldt);*/
                + dwrite  . srcshade
                */
             daddasel = ((dwrite && gourd) || (dzwrite && gourz) || istepadd || zstepfadd
-                  || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00)
-			| ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00)
-            | (((gourd || gourz) && !(init_if || init_ii || init_zf || init_zi))
+                  || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00);
+            daddasel |= ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00);
+            daddasel |= (((gourd || gourz) && !(init_if || init_ii || init_zf || init_zi))
                   || (dwrite && srcshade) ? 0x04 : 0x00);
             /* Data adder control, input B selection
                0000	Source data
@@ -1766,11 +1768,11 @@ A2ptrldi	:= NAN2 (a2ptrldi, a2update\, a2pldt);*/
                Bit 3 =   istepadd + istepfadd + zstepadd + zstepfadd
                */
             daddbsel = ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
-                  || istepadd || zstepadd || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00)
-            | ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00)
-            | ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
-                  || istepadd || istepfadd || zstepadd || zstepfadd ? 0x04 : 0x00)
-            | (istepadd && istepfadd && zstepadd && zstepfadd ? 0x08 : 0x00);
+                  || istepadd || zstepadd || init_if || init_ii || init_zf || init_zi ? 0x01 : 0x00);
+            daddbsel |= ((dzwrite && gourz) || zstepadd || zstepfadd ? 0x02 : 0x00);
+            daddbsel |= ((dwrite && gourd) || (dzwrite && gourz) || (dwrite && srcshade)
+                  || istepadd || istepfadd || zstepadd || zstepfadd ? 0x04 : 0x00);
+            daddbsel |= (istepadd && istepfadd && zstepadd && zstepfadd ? 0x08 : 0x00);
             /* Data adder mode control
                000	16-bit normal add
                001	16-bit saturating add with carry
@@ -2859,27 +2861,27 @@ Patdhi		:= JOIN (patdhi, patd[32..63]);*/
 
 /*Lfu		:= LFU (lfu[0..1], srcdlo, srcdhi, dstdlo, dstdhi, lfu_func[0..3]);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-	static const uint64_t funcmask[2] = { 0, 0xFFFFFFFFFFFFFFFFLL };
-	const uint64_t func0 = funcmask[lfu_func & 0x01];
-	const uint64_t func1 = funcmask[(lfu_func >> 1) & 0x01];
-	const uint64_t func2 = funcmask[(lfu_func >> 2) & 0x01];
-	const uint64_t func3 = funcmask[(lfu_func >> 3) & 0x01];
-	const uint64_t lfu = (~srcd & ~dstd & func0) | (~srcd & dstd & func1) | (srcd & ~dstd & func2) | (srcd & dstd & func3);
+	uint64_t funcmask[2] = { 0, 0xFFFFFFFFFFFFFFFFLL };
+	uint64_t func0 = funcmask[lfu_func & 0x01];
+	uint64_t func1 = funcmask[(lfu_func >> 1) & 0x01];
+	uint64_t func2 = funcmask[(lfu_func >> 2) & 0x01];
+	uint64_t func3 = funcmask[(lfu_func >> 3) & 0x01];
+	uint64_t lfu = (~srcd & ~dstd & func0) | (~srcd & dstd & func1) | (srcd & ~dstd & func2) | (srcd & dstd & func3);
    bool mir_bit, mir_byte;
    uint16_t masku;
    uint8_t e_coarse, e_fine;
    uint8_t s_coarse, s_fine;
    uint16_t maskt;
-	static const uint8_t decl38e[2][8] = { { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
+	uint8_t decl38e[2][8] = { { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
 		{ 0xFE, 0xFD, 0xFB, 0xF7, 0xEF, 0xDF, 0xBF, 0x7F } };
-	static const uint8_t dech38[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
-	static const uint8_t dech38el[2][8] = { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 },
+	uint8_t dech38[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
+	uint8_t dech38el[2][8] = { { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 },
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
    int en;
-   Bits64 cmpd;
+   uint64_t cmpd;
 	uint8_t dbinht;
    uint16_t addq[4];
-	static const uint8_t initcin[4] = { 0, 0, 0, 0 };
+   uint8_t initcin[4] = { 0, 0, 0, 0 };
    uint16_t mask;
    uint64_t dmux[4];
    uint64_t ddat;
@@ -2900,23 +2902,23 @@ Zstep		:= JOIN (zstep, zstep[0..31]);*/
 /*Datacomp	:= DATACOMP (dcomp[0..7], cmpdst, dstdlo, dstdhi, patdlo, patdhi, srcdlo, srcdhi);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
 	*dcomp = 0;
-	cmpd.DATA = *patd ^ (cmpdst ? dstd : srcd);
+	cmpd = *patd ^ (cmpdst ? dstd : srcd);
 
-	if (cmpd.bytes.b0 == 0)
+	if ((cmpd & 0x00000000000000FFLL) == 0)
 		*dcomp |= 0x01u;
-	if (cmpd.bytes.b1 == 0)
+	if ((cmpd & 0x000000000000FF00LL) == 0)
 		*dcomp |= 0x02u;
-	if (cmpd.bytes.b2 == 0)
+	if ((cmpd & 0x0000000000FF0000LL) == 0)
 		*dcomp |= 0x04u;
-	if (cmpd.bytes.b3 == 0)
+	if ((cmpd & 0x00000000FF000000LL) == 0)
 		*dcomp |= 0x08u;
-	if (cmpd.bytes.b4 == 0)
+	if ((cmpd & 0x000000FF00000000LL) == 0)
 		*dcomp |= 0x10u;
-	if (cmpd.bytes.b5 == 0)
+	if ((cmpd & 0x0000FF0000000000LL) == 0)
 		*dcomp |= 0x20u;
-	if (cmpd.bytes.b6 == 0)
+	if ((cmpd & 0x00FF000000000000LL) == 0)
 		*dcomp |= 0x40u;
-	if (cmpd.bytes.b7 == 0)
+	if ((cmpd & 0xFF00000000000000LL) == 0)
 		*dcomp |= 0x80u;
 //////////////////////////////////////////////////////////////////////////////////////
 
@@ -2934,25 +2936,25 @@ with srcshift bits 4 & 5 selecting the start position
 */
 //So... basically what we have here is:
 	*zcomp = 0;
-    // TODO: Byte and bit this - @joematt provenance
-	if ((((*srcz & 0x000000000000FFFFLL) < (dstz & 0x000000000000FFFFLL)) && (zmode & 0x01u))
-		|| (((*srcz & 0x000000000000FFFFLL) == (dstz & 0x000000000000FFFFLL)) && (zmode & 0x02u))
-		|| (((*srcz & 0x000000000000FFFFLL) > (dstz & 0x000000000000FFFFLL)) && (zmode & 0x04u)))
+
+	if ((((*srcz & 0x000000000000FFFFLL) < (dstz & 0x000000000000FFFFLL)) && (zmode & 0x01))
+		|| (((*srcz & 0x000000000000FFFFLL) == (dstz & 0x000000000000FFFFLL)) && (zmode & 0x02))
+		|| (((*srcz & 0x000000000000FFFFLL) > (dstz & 0x000000000000FFFFLL)) && (zmode & 0x04)))
 		*zcomp |= 0x01u;
 
-	if ((((*srcz & 0x00000000FFFF0000LL) < (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x01u))
-		|| (((*srcz & 0x00000000FFFF0000LL) == (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x02u))
-		|| (((*srcz & 0x00000000FFFF0000LL) > (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x04u)))
+	if ((((*srcz & 0x00000000FFFF0000LL) < (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x01))
+		|| (((*srcz & 0x00000000FFFF0000LL) == (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x02))
+		|| (((*srcz & 0x00000000FFFF0000LL) > (dstz & 0x00000000FFFF0000LL)) && (zmode & 0x04)))
 		*zcomp |= 0x02u;
 
-	if ((((*srcz & 0x0000FFFF00000000LL) < (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x01u))
-		|| (((*srcz & 0x0000FFFF00000000LL) == (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x02u))
-		|| (((*srcz & 0x0000FFFF00000000LL) > (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x04u)))
+	if ((((*srcz & 0x0000FFFF00000000LL) < (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x01))
+		|| (((*srcz & 0x0000FFFF00000000LL) == (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x02))
+		|| (((*srcz & 0x0000FFFF00000000LL) > (dstz & 0x0000FFFF00000000LL)) && (zmode & 0x04)))
 		*zcomp |= 0x04u;
 
-	if ((((*srcz & 0xFFFF000000000000LL) < (dstz & 0xFFFF000000000000LL)) && (zmode & 0x01u))
-		|| (((*srcz & 0xFFFF000000000000LL) == (dstz & 0xFFFF000000000000LL)) && (zmode & 0x02u))
-		|| (((*srcz & 0xFFFF000000000000LL) > (dstz & 0xFFFF000000000000LL)) && (zmode & 0x04u)))
+	if ((((*srcz & 0xFFFF000000000000LL) < (dstz & 0xFFFF000000000000LL)) && (zmode & 0x01))
+		|| (((*srcz & 0xFFFF000000000000LL) == (dstz & 0xFFFF000000000000LL)) && (zmode & 0x02))
+		|| (((*srcz & 0xFFFF000000000000LL) > (dstz & 0xFFFF000000000000LL)) && (zmode & 0x04)))
 		*zcomp |= 0x08u;
 
 //TEMP, TO TEST IF ZCOMP IS THE CULPRIT...
@@ -3065,8 +3067,6 @@ Sfine		:= DECH38EL (s_fine[0..7], dstart[0..2], sfen\);*/
 /*Maskt[0]	:= BUF1 (maskt[0], s_fine[0]);
 Maskt[1-7]	:= OAN1P (maskt[1-7], maskt[0-6], s_fine[1-7], e_fine\[1-7]);*/
 ////////////////////////////////////// C++ CODE //////////////////////////////////////
-    // TODO: Byte and bit this - @joematt provenance
-
 	maskt = s_fine & 0x0001;
 	maskt |= (((maskt & 0x0001) || (s_fine & 0x02u)) && (e_fine & 0x02u) ? 0x0002 : 0x0000);
 	maskt |= (((maskt & 0x0002) || (s_fine & 0x04u)) && (e_fine & 0x04u) ? 0x0004 : 0x0000);
@@ -3078,7 +3078,6 @@ Maskt[1-7]	:= OAN1P (maskt[1-7], maskt[0-6], s_fine[1-7], e_fine\[1-7]);*/
 //////////////////////////////////////////////////////////////////////////////////////
 
    /* Produce a look-ahead on the ripple carry */
-    // TODO: Byte and bit this - @joematt provenance
 	maskt |= (((s_coarse & e_coarse & 0x01u) || (s_coarse & 0x02u)) && (e_coarse & 0x02u) ? 0x0100 : 0x0000);
 	maskt |= (((maskt & 0x0100) || (s_coarse & 0x04u)) && (e_coarse & 0x04u) ? 0x0200 : 0x0000);
 	maskt |= (((maskt & 0x0200) || (s_coarse & 0x08u)) && (e_coarse & 0x08u) ? 0x0400 : 0x0000);
@@ -3115,7 +3114,6 @@ Masku[14]	:= MX2 (masku[14], maskt[14], maskt[0],  mir_byte);*/
 	mir_bit  = true/*big_pix*/ && !phrase_mode;
 	mir_byte = true/*big_pix*/ && phrase_mode;
 	masku    = maskt;
-    // TODO: Byte and bit this - @joematt provenance
 
 	if (mir_bit)
 	{
