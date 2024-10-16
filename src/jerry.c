@@ -169,7 +169,7 @@
 
 //Note that 44100 Hz requires samples every 22.675737 usec.
 
-static uint8_t jerry_ram_8[0x10000];
+uint8_t jerry_ram_8[0x10000];
 
 uint8_t analog_x, analog_y;
 
@@ -177,6 +177,8 @@ static uint32_t JERRYPIT1Prescaler;
 static uint32_t JERRYPIT1Divider;
 static uint32_t JERRYPIT2Prescaler;
 static uint32_t JERRYPIT2Divider;
+static int32_t jerry_timer_1_counter;
+static int32_t jerry_timer_2_counter;
 
 int32_t JERRYI2SInterruptTimer = -1;
 uint32_t jerryI2SCycles;
@@ -334,6 +336,8 @@ void JERRYReset(void)
    JERRYPIT2Prescaler = 0xFFFF;
    JERRYPIT1Divider = 0xFFFF;
    JERRYPIT2Divider = 0xFFFF;
+   jerry_timer_1_counter = 0;
+   jerry_timer_2_counter = 0;
    jerryInterruptMask = 0x0000;
    jerryPendingInterrupt = 0x0000;
 

@@ -10,10 +10,6 @@
 #ifndef __INLINES_H__
 #define __INLINES_H__
 
-#ifndef INLINE
-#define INLINE __inline__
-#endif /* INLINE */
-
 #include "cpudefs.h"
 #include "m68kinterface.h"
 

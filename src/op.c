@@ -42,7 +42,7 @@
 
 void OPProcessFixedBitmap(uint64_t p0, uint64_t p1, bool render);
 void OPProcessScaledBitmap(uint64_t p0, uint64_t p1, uint64_t p2, bool render);
-//void OPDiscoverObjects(uint32_t address);
+void OPDiscoverObjects(uint32_t address);
 uint64_t OPLoadPhrase(uint32_t offset);
 
 // Local global variables
@@ -52,8 +52,9 @@ static uint8_t op_blend_y[0x10000];
 static uint8_t op_blend_cr[0x10000];
 // There may be a problem with this "RAM" overlapping (and thus being independent of)
 // some of the regular TOM RAM...
-//uint8_t objectp_running = 0;
+uint8_t objectp_running = 0;
 
+static uint8_t op_bitmap_bit_depth[8] = { 1, 2, 4, 8, 16, 24, 32, 0 };
 static uint32_t op_pointer;
 
 int32_t phraseWidthToPixels[8] = { 64, 32, 16, 8, 4, 2, 0, 0 };
@@ -104,82 +105,86 @@ void OPInit(void)
       op_blend_cr[i] = (c2 << 4) | c1;
    }
 
-//   OPReset();
+   OPReset();
 }
 
 
 //
 // Object Processor reset
 //
-//void OPReset(void)
-//{
-//   objectp_running = 0;
-//}
+void OPReset(void)
+{
+   objectp_running = 0;
+}
 
 
-//static uint32_t object[8192];
-//static uint32_t numberOfObjects;
+static const char * opType[8] =
+{ "(BITMAP)", "(SCALED BITMAP)", "(GPU INT)", "(BRANCH)", "(STOP)", "???", "???", "???" };
+static const char * ccType[8] =
+{ "==", "<", ">", "(opflag set)", "(second half line)", "?", "?", "?" };
+static uint32_t object[8192];
+static uint32_t numberOfObjects;
 
-//void OPDone(void)
-//{
-//   uint32_t olp = OPGetListPointer();
+void OPDone(void)
+{
+   uint32_t olp = OPGetListPointer();
 
-//   numberOfObjects = 0;
-//   OPDiscoverObjects(olp);
-//}
+   numberOfObjects = 0;
+   OPDiscoverObjects(olp);
+}
 
-//
-//bool OPObjectExists(uint32_t address)
-//{
-//   unsigned i;
-//
-//   // Yes, we really do a linear search, every time. :-/
-//   for(i=0; i<numberOfObjects; i++)
-//   {
-//      if (address == object[i])
-//         return true;
-//   }
-//
-//   return false;
-//}
 
-//
-//void OPDiscoverObjects(uint32_t address)
-//{
-//   uint8_t objectType = 0;
-//
-//   do
-//   {
-//      uint32_t hi, lo, link;
-//
-//      // If we've seen this object already, bail out!
-//      // Otherwise, add it to the list
-//      if (OPObjectExists(address))
-//         return;
-//
-//      object[numberOfObjects++] = address;
-//
-//      // Get the object & decode its type, link address
-//      hi = JaguarReadLong(address + 0, OP);
-//      lo = JaguarReadLong(address + 4, OP);
-//      objectType = lo & 0x07;
-//      link = ((hi << 11) | (lo >> 21)) & 0x3FFFF8;
-//
-//      if (objectType == 3)
-//      {
-//         // Branch if YPOS < 2047 can be treated as a GOTO, so don't do any
-//         // discovery in that case. Otherwise, have at it:
-//         if ((lo & 0xFFFF) != 0x7FFB)
-//            // Recursion needed to follow all links! This does depth-first
-//            // recursion on the not-taken objects
-//            OPDiscoverObjects(address + 8);
-//      }
-//
-//      // Get the next object...
-//      address = link;
-//   }
-//   while (objectType != 4);
-//}
+bool OPObjectExists(uint32_t address)
+{
+   unsigned i;
+
+   // Yes, we really do a linear search, every time. :-/
+   for(i=0; i<numberOfObjects; i++)
+   {
+      if (address == object[i])
+         return true;
+   }
+
+   return false;
+}
+
+
+void OPDiscoverObjects(uint32_t address)
+{
+   uint8_t objectType = 0;
+
+   do
+   {
+      uint32_t hi, lo, link;
+
+      // If we've seen this object already, bail out!
+      // Otherwise, add it to the list
+      if (OPObjectExists(address))
+         return;
+
+      object[numberOfObjects++] = address;
+
+      // Get the object & decode its type, link address
+      hi = JaguarReadLong(address + 0, OP);
+      lo = JaguarReadLong(address + 4, OP);
+      objectType = lo & 0x07;
+      link = ((hi << 11) | (lo >> 21)) & 0x3FFFF8;
+
+      if (objectType == 3)
+      {
+         // Branch if YPOS < 2047 can be treated as a GOTO, so don't do any
+         // discovery in that case. Otherwise, have at it:
+         if ((lo & 0xFFFF) != 0x7FFB)
+            // Recursion needed to follow all links! This does depth-first
+            // recursion on the not-taken objects
+            OPDiscoverObjects(address + 8);
+      }
+
+      // Get the next object...
+      address = link;
+   }
+   while (objectType != 4);
+}
 
 //
 // Object Processor memory access

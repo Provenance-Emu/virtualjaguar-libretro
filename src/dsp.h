@@ -29,6 +29,7 @@ uint32_t DSPReadLong(uint32_t offset, uint32_t who);
 void DSPWriteByte(uint32_t offset, uint8_t data, uint32_t who);
 void DSPWriteWord(uint32_t offset, uint16_t data, uint32_t who);
 void DSPWriteLong(uint32_t offset, uint32_t data, uint32_t who);
+void DSPReleaseTimeslice(void);
 bool DSPIsRunning(void);
 
 void DSPExecP(int32_t cycles);
