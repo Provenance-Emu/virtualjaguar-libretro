@@ -22,7 +22,6 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "inlines.h"
 #include "readcpu.h"
 
 int nr_cpuop_funcs;

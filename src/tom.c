@@ -806,11 +806,13 @@ void TOMInit(void)
    TOMReset();
 }
 
+
 void TOMDone(void)
 {
-//   OPDone();
+   OPDone();
    BlitterDone();
 }
+
 
 uint32_t TOMGetVideoModeWidth(void)
 {
@@ -825,7 +827,7 @@ uint32_t TOMGetVideoModeHeight(void)
 
 void TOMReset(void)
 {
-//   OPReset();
+   OPReset();
    BlitterReset();
    memset(tomRam8, 0x00, 0x4000);
 
@@ -1078,7 +1080,7 @@ void TOMWriteWord(uint32_t offset, uint16_t data, uint32_t who)
    if (offset == 0x28)			// VMODE (Why? Why not OBF?)
       //Actually, we should check to see if the Enable bit of VMODE is set before doing this... !!! FIX !!!
 //#warning "Actually, we should check to see if the Enable bit of VMODE is set before doing this... !!! FIX !!!"
-//      objectp_running = 1;
+      objectp_running = 1;
 
    if (offset >= 0x30 && offset <= 0x4E)
       data &= 0x07FF;			// These are (mostly) 11-bit registers
