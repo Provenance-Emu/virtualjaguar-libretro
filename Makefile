@@ -625,6 +625,10 @@ clean:
 		test/test_dsp_ops test/test_dsp_unit test/test_hle_bios \
 		test/test_subsystem_init test/test_subsystem_timeline \
 		test/test_irq_cascade test/test_boot_patterns test/test_audio_pipeline \
+		test/test_butch_cd test/test_bios_config test/test_boot_config \
+		test/test_cd_boot test/test_cd_hle_boot test/test_cd_bios_boot \
+		test/test_audio_dac test/test_blitter \
+		test/dump_pc test/heap_search \
 		test/tools/test_memory_map
 
 # Self-contained unit tests (parser + list management + simulated
@@ -639,7 +643,10 @@ test: test/test_cheat test/test_event_queue test/test_blitter_simd test/test_dsp
 		$(TARGET) test/test_m68k_ops test/test_gpu_ops test/test_dsp_ops \
 		test/test_dsp_unit test/test_hle_bios test/test_subsystem_init \
 		test/test_subsystem_timeline test/test_irq_cascade test/test_boot_patterns \
-		test/test_audio_pipeline test/tools/test_memory_map
+		test/test_audio_pipeline test/test_butch_cd test/test_bios_config \
+		test/test_boot_config test/test_cd_boot test/test_cd_hle_boot \
+		test/test_cd_bios_boot test/test_audio_dac test/test_blitter \
+		test/tools/test_memory_map
 	./test/test_cheat
 	./test/test_event_queue
 	./test/test_blitter_simd
@@ -654,7 +661,18 @@ test: test/test_cheat test/test_event_queue test/test_blitter_simd test/test_dsp
 	./test/test_irq_cascade ./$(TARGET)
 	./test/test_boot_patterns
 	./test/test_audio_pipeline ./$(TARGET)
+	./test/test_butch_cd
+	./test/test_bios_config
+	./test/test_boot_config
+	./test/test_audio_dac
 	./test/tools/test_memory_map ./$(TARGET)
+	@echo ""
+	@echo "Note: test/test_cd_boot, test/test_cd_hle_boot, test/test_cd_bios_boot,"
+	@echo "and test/test_blitter (register-readback) are built but not run from"
+	@echo "'make test'. The CD sweeps walk every disc in test/roms/private/; the"
+	@echo "blitter readback tests probe register read paths that the emulator"
+	@echo "does not currently expose. Invoke them directly when validating"
+	@echo "regressions in those subsystems."
 
 test/test_cheat: test/test_cheat.c src/core/cheat.c src/core/cheat.h
 	$(CC) -O2 -Wall -std=c99 $(INCFLAGS) \
@@ -713,6 +731,54 @@ test/test_audio_pipeline: test/test_audio_pipeline.c
 test/tools/test_memory_map: test/tools/test_memory_map.c
 	$(CC) -O2 -Wall -std=c99 $(INCFLAGS) \
 		-o $@ test/tools/test_memory_map.c -ldl
+
+# CD-specific test harnesses (imported from PR #109).  Tests SKIP gracefully
+# when no disc images are present in test/roms/private/, so CI without
+# private ROMs still passes.
+test/test_butch_cd: test/test_butch_cd.c test/test_framework.h test/mister_ground_truth.h
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_butch_cd.c -ldl
+
+test/test_bios_config: test/test_bios_config.c
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_bios_config.c -ldl
+
+test/test_boot_config: test/test_boot_config.c
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_boot_config.c -ldl
+
+test/test_cd_boot: test/test_cd_boot.c
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_cd_boot.c -ldl
+
+test/test_cd_hle_boot: test/test_cd_hle_boot.c test/test_framework.h test/cd_assertions.h
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_cd_hle_boot.c -ldl
+
+test/test_cd_bios_boot: test/test_cd_bios_boot.c test/test_framework.h test/cd_assertions.h
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_cd_bios_boot.c -ldl
+
+test/test_audio_dac: test/test_audio_dac.c test/test_framework.h
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_audio_dac.c -ldl -lm
+
+test/test_blitter: test/test_blitter.c test/test_framework.h
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/test_blitter.c -ldl
+
+# Diagnostic CD harnesses: invoked manually with a CUE/CHD argument.
+test/dump_pc: test/dump_pc.c
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/dump_pc.c -ldl
+
+test/heap_search: test/heap_search.c
+	$(CC) -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $(INCFLAGS) \
+		-o $@ test/heap_search.c -ldl
+
+# Aggregate target for the manual diagnostic tools.
+.PHONY: tools
+tools: test/dump_pc test/heap_search test/test_cd_boot
 endif
 
 .PHONY: clean test lint
