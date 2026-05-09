@@ -56,8 +56,22 @@ extern uint32_t * smode;
 
 // Read/write tracing enumeration
 
+// Xcode SPM builds pass `-DDEBUG=1` for Debug configurations, which expands
+// the `DEBUG` identifier in the enum below to `1` and breaks the parse.
+// Save and restore the macro across this declaration.
+#ifdef DEBUG
+#  define VJAG_MEMORY_H_DEBUG_WAS_DEFINED 1
+#  pragma push_macro("DEBUG")
+#  undef DEBUG
+#endif
+
 enum { UNKNOWN, JAGUAR, DSP, GPU, TOM, JERRY, M68K, BLITTER, OP, DEBUG };
 extern const char * whoName[10];
+
+#ifdef VJAG_MEMORY_H_DEBUG_WAS_DEFINED
+#  pragma pop_macro("DEBUG")
+#  undef VJAG_MEMORY_H_DEBUG_WAS_DEFINED
+#endif
 
 // BIOS identification enum
 
