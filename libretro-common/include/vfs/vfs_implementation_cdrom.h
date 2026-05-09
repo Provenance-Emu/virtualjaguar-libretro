@@ -23,6 +23,8 @@
 #ifndef __LIBRETRO_SDK_VFS_IMPLEMENTATION_CDROM_H
 #define __LIBRETRO_SDK_VFS_IMPLEMENTATION_CDROM_H
 
+#ifdef HAVE_CDROM
+
 #include <vfs/vfs.h>
 #include <cdrom/cdrom.h>
 
@@ -48,5 +50,7 @@ const cdrom_toc_t* retro_vfs_file_get_cdrom_toc(void);
 const vfs_cdrom_t* retro_vfs_file_get_cdrom_position(const libretro_vfs_implementation_file *stream);
 
 RETRO_END_DECLS
+
+#endif /* HAVE_CDROM */
 
 #endif
