@@ -5,14 +5,27 @@
  * blitter.c can inline them (see blitter_simd.h).  This file only
  * provides the function-pointer table, which test/test_blitter_simd.c
  * uses to exercise the very same code the core runs.
+ *
+ * NEON is mandatory on AArch64 and available on most ARMv7-A with
+ * VFPv3.  The Makefile selects this file when targeting ARM64 or when
+ * HAVE_NEON=1.
  */
 
-/* Select our own arch before blitter_simd.h picks one.  This file IS
- * the neon implementation, so it must get the neon inline set even when
- * compiled standalone without the Makefile's -DBLITTER_SIMD_NEON --
- * as .github/workflows/c-cpp.yml does when it builds
- * test_blitter_simd by hand.  Without this the header chain pulled in
- * the scalar set as well and the two collided. */
+/* Two guards, and they are not the same guard.
+ *
+ * The outer arch check makes this whole TU empty on the wrong host.  The
+ * SPM build (Package.swift) compiles every SIMD variant together rather
+ * than letting the Makefile pick one, so without it the wrong intrinsic
+ * header gets pulled in and the build dies on a cross-arch host.
+ *
+ * The inner define selects our own arch before blitter_simd.h picks one.
+ * This file IS the neon implementation, so it must get the neon inline set
+ * even when compiled standalone without the Makefile's -DBLITTER_SIMD_NEON
+ * -- as .github/workflows/c-cpp.yml does when it builds test_blitter_simd
+ * by hand.  Without it the header chain pulled in the scalar set as well
+ * and the two collided. */
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
+
 #ifndef BLITTER_SIMD_NEON
 #define BLITTER_SIMD_NEON 1
 #endif
@@ -55,3 +68,5 @@ const blitter_simd_ops_t blitter_simd_ops = {
    ops_byte_merge,
    ops_add16sat_x4
 };
+
+#endif /* __ARM_NEON || __aarch64__ */

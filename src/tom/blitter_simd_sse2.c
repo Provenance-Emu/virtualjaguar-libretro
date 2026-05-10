@@ -5,14 +5,26 @@
  * blitter.c can inline them (see blitter_simd.h).  This file only
  * provides the function-pointer table, which test/test_blitter_simd.c
  * uses to exercise the very same code the core runs.
+ *
+ * SSE2 is baseline for all x86_64 processors and available on x86 since
+ * Pentium 4 (2001).  No runtime feature detection needed.
  */
 
-/* Select our own arch before blitter_simd.h picks one.  This file IS
- * the sse2 implementation, so it must get the sse2 inline set even when
- * compiled standalone without the Makefile's -DBLITTER_SIMD_SSE2 --
- * as .github/workflows/c-cpp.yml does when it builds
- * test_blitter_simd by hand.  Without this the header chain pulled in
- * the scalar set as well and the two collided. */
+/* Two guards, and they are not the same guard.
+ *
+ * The outer arch check makes this whole TU empty on the wrong host.  The
+ * SPM build (Package.swift) compiles every SIMD variant together rather
+ * than letting the Makefile pick one, so without it the wrong intrinsic
+ * header gets pulled in and the build dies on a cross-arch host.
+ *
+ * The inner define selects our own arch before blitter_simd.h picks one.
+ * This file IS the sse2 implementation, so it must get the sse2 inline set
+ * even when compiled standalone without the Makefile's -DBLITTER_SIMD_SSE2
+ * -- as .github/workflows/c-cpp.yml does when it builds test_blitter_simd
+ * by hand.  Without it the header chain pulled in the scalar set as well
+ * and the two collided. */
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+
 #ifndef BLITTER_SIMD_SSE2
 #define BLITTER_SIMD_SSE2 1
 #endif
@@ -55,3 +67,5 @@ const blitter_simd_ops_t blitter_simd_ops = {
    ops_byte_merge,
    ops_add16sat_x4
 };
+
+#endif /* __x86_64__ || __i386__ || _M_X64 || _M_IX86 */
