@@ -3,8 +3,12 @@
  *
  * NEON is mandatory on AArch64 and available on most ARMv7-A with
  * VFPv3. The Makefile selects this file when targeting ARM64 or
- * when HAVE_NEON=1.
+ * when HAVE_NEON=1. The SPM build (Package.swift) compiles every
+ * SIMD variant together; this top-of-file guard makes the TU empty
+ * on non-ARM hosts so the wrong intrinsic header isn't pulled in.
  */
+
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
 
 #include "blitter_simd.h"
 #include <arm_neon.h>
@@ -296,3 +300,5 @@ const blitter_simd_ops_t blitter_simd_ops = {
    neon_byte_merge,
    neon_add16sat_x4
 };
+
+#endif /* __ARM_NEON || __aarch64__ */

@@ -6,7 +6,13 @@
  *
  * Operations work on 64-bit values loaded into 128-bit SSE registers
  * (upper 64 bits unused or zeroed).
+ *
+ * SPM-build companion to blitter_simd_neon.c: both variants are in
+ * the source list; this top-of-file guard makes the TU empty on
+ * non-x86 hosts so <emmintrin.h> isn't pulled in there.
  */
+
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 
 #include "blitter_simd.h"
 #include <emmintrin.h>  /* SSE2 */
@@ -325,3 +331,5 @@ const blitter_simd_ops_t blitter_simd_ops = {
    sse2_byte_merge,
    sse2_add16sat_x4
 };
+
+#endif /* __x86_64__ || __i386__ || _M_X64 || _M_IX86 */
