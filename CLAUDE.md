@@ -86,14 +86,58 @@ To add a new probe: create `test/harness/foo_probe.h` + `.c`, resolve symbols vi
 - `test/regression_test.sh` — screenshot regression vs `test/baselines/` via miniretro (built from source on first run; `MINIRETRO_BIN` env to skip the build)
 - `test/tools/test_dsp_audio_diag.c` — DSP audio diagnostic (`make dsp-diag DSP_DIAG_ROM=path`); detects PC escape, bank init failures, silent LTXD
 - `test/tools/test_frame_timing.c` — per-frame timing diagnostic (`make frame-timing FRAME_TIMING_ROM=path`); reports halflines/cycles/VBlanks per frame, wall-clock speed ratio, anomaly detection. Use `--csv` for per-frame data, `--json` for machine output
+- `test/test_audio_clipping.c` — detects loud-broken audio (saturation density, run length, sustained loud RMS). Catches the Skyhammer / IS2 "saturated square wave" failure mode.
+- `test/test_audio_presence.c` — counterpart to clipping: asserts audio is present in a known-good envelope (RMS within `[floor, ceiling]`, onset reached, no long zero runs). **Required to catch the silencing-regression class** where a "fix" drops RMS to zero — clipping passes but the game has no audio. Iron Soldier 1 baseline: RMS ~1175 on develop.
 - `test/tools/test_memory_map.c` — asserts `SET_MEMORY_MAPS`, `SET_SUPPORT_ACHIEVEMENTS=true`, descriptor layout
-- `test/tools/test_blitter_compare` — fast vs accurate blitter diff
+- `test/tools/test_blitter_compare` — fast vs accurate blitter diff. Not in default `make`; build manually:
+  `cc -O2 -Wall -std=c99 -I./libretro-common/include -o test/tools/test_blitter_compare test/tools/test_blitter_compare.c -ldl`
+  Usage: `<core.so|.dylib> <rom> [frames] --load-state <file> [--frame-window F L] [--cmd-filter MASK VAL] [--verbose-dump]` (note: `--load-state`, not `--savestate`).
 - `test/test_dsp_mac40.c` — DSP 40-bit MAC accumulator (`dsp_acc40.h`)
 - `test/sram_test.sh` — SRAM round-trip
 
 ### Performance / profiling
 
 `make benchmark` runs `test/tools/test_benchmark` headlessly against a fixed ROM (default `test/roms/yarc.j64`, 600 frames) and prints FPS / ms-per-frame. Use as a same-host commit-to-commit delta — don't compare across machines. Full guide: [`docs/profiling.md`](docs/profiling.md) covers Instruments / `perf` / flame graphs and the SIMD A/B knob.
+
+### Runtime crash watchdog
+
+`src/core/crash_detect.c` runs once per frame from `retro_run` and logs to the RetroArch log on these signatures:
+
+- `gpu_pc_escape` — GPU running with PC outside `[$F03000,$F03FFF]` ∪ `[$0,$E3FFFF]` (matches the JaguarReadX address decoding: main RAM mirrors at the bottom 8MB, cart ROM, boot ROM)
+- `dsp_pc_escape` — DSP running with PC outside `[$F1B000,$F1CFFF]` ∪ `[$0,$E3FFFF]`
+- `gpu_wedge` / `dsp_wedge` — same PC for ≥180 / 600 frames while still flagged running
+- `video_stall` — framebuffer hash unchanged for 300 frames while a processor is running
+
+Toggled via core option `virtualjaguar_crash_detect = enabled` (default) / `disabled` / `verbose`. Verbose mode adds a state heartbeat every 600 frames. Cost when enabled: one indirect call + ~256-pixel hash per frame; off-mode short-circuits at the first instruction.
+
+When triaging "X crashes / hangs / goes to a black screen" reports, the user's RetroArch log should show the signature. No save state, no input recording needed — the log line at the moment-of-crash points at which subsystem broke. **Add new signatures here when you find a recurring failure mode that isn't already covered**; don't sprinkle one-off `LOG_ERR` calls across the subsystem files.
+
+### Audio / DSP work — required tests
+
+**Any change to `src/jerry/dac.c`, `src/jerry/dsp.c`, the HLE BIOS DSP/audio engine path in `src/core/jaguar.c`, or the DSP IRQ return-address logic MUST be validated against both audio tests, not just one.** A clipping check alone is insufficient: PR #170 (closed) shipped a "fix" that took Iron Soldier 2 from 17% saturated samples to RMS=521 (silent), and the clipping test passed because silence has 0% saturation.
+
+Required runs before declaring an audio change done:
+
+1. `make TEST_EXPORTS=1 test` — must exit 0. Both `test_audio_clipping` and `test_audio_presence` are part of the suite. The presence check on Iron Soldier 1 uses develop's measured envelope (`--rms-floor 200 --rms-ceiling 25000`). If your change moves IS1's RMS outside that band, you've changed audio behavior — verify it's intentional.
+2. Sanity-check that previously-clipping titles (Skyhammer, IS2) didn't go from "loud broken" to "silent broken". Skyhammer should still fail clipping until it's actually fixed; if it suddenly passes clipping but presence drops to silence, that's the masked-failure pattern.
+3. **Verify in RetroArch on a real game.** Headless tests cannot tell "music plays" from "structured noise at the right RMS" or catch BIOS-mode crashes. Memory: PR #170's BIOS crash + HLE silence in Skyhammer were both invisible to the test suite.
+
+Do not relax thresholds in `test_audio_clipping.c` or `test_audio_presence.c` to make a PR pass. If a real fix makes a known-broken title legitimately quieter, that's a separate, deliberate baseline update — call it out in the commit, not as a side effect.
+
+### Acid suite CI gating
+
+The "Acid suite (linux x86_64)" job can show `conclusion: failure` for two unrelated reasons. Read the summary before assuming a real regression:
+
+- `make -C test/acid test` exits non-zero by design (returns FAIL count). The job uses `set +e` and gates on `check-baseline.py` instead. Real regression = `Regressions: N` (N>0) in `acid-summary.txt`.
+- Job conclusion `failure` with `OK: no regressions` in the step output = the artifact-upload step timed out (`Operation could not be completed within the specified time`). Re-run the job; no code action needed.
+
+## GitHub Copilot PR reviews
+
+- List unresolved threads: `gh api graphql -f query='{repository(owner:"libretro",name:"virtualjaguar-libretro"){pullRequest(number:N){reviewThreads(first:30){nodes{id isResolved comments(first:1){nodes{id author{login} body}}}}}}}'`
+- Inline reply: `gh api -X POST repos/libretro/virtualjaguar-libretro/pulls/N/comments/<REST_ID>/replies -f body="..."` — parent is the REST `id` from `gh api .../comments`, NOT the GraphQL `PRRC_*` id (returns 404).
+- Resolve thread: `gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "PRRT_..."}) { thread { isResolved } } }'`.
+- Trigger a Copilot review: `gh pr comment N --body "@copilot review"`. The `requested_reviewers` REST endpoint rejects `copilot-pull-request-reviewer` as "not a collaborator".
+- Always reply AND resolve when addressing feedback — leaving a thread open after a fix is noise for the next reviewer.
 
 ### Headless framebuffer caveat
 
@@ -118,7 +162,7 @@ When spawning agents for work in this repo, include these rules:
 1. **C89 strict.** No mid-block declarations, no `for(int i…)`, no C99. All vars at top of block. Run `bash scripts/c89-lint.sh src/YOURFILE.c` before declaring done.
 2. **Branch from develop.** Use `git worktree` or branch off develop. Never target main.
 3. **Hardware reference.** For any emulation-accuracy work, read `docs/jtrm-*.md` first. Do NOT trust source-code comments for clock rates or register behavior.
-4. **Test after changes.** Run `make -j$(getconf _NPROCESSORS_ONLN)` to verify build. Run `make test` for the full suite. For blitter changes, also run `test/tools/test_blitter_compare` if available.
+4. **Test after changes.** Run `make -j$(getconf _NPROCESSORS_ONLN)` to verify build. Run `make test` for the full suite. For blitter changes, also run `test/tools/test_blitter_compare` if available. **For audio / DSP / HLE-engine changes**, both `test_audio_clipping` and `test_audio_presence` must pass; running only one masks the silencing-regression class (see "Audio / DSP work — required tests" above). Verify in RetroArch on a real game before declaring done — headless tests cannot tell music from structured noise, and they don't catch BIOS-mode crashes.
 5. **No unnecessary changes.** Don't refactor surrounding code, add abstractions, or clean up unrelated files. Surgical changes only.
 6. **Commit message style.** Use conventional commits: `fix(component):`, `perf(component):`, `test(component):`, `docs:`.
 
