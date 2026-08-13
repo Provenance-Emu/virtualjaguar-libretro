@@ -123,6 +123,12 @@ static bool environment_cb(unsigned cmd, void *data)
             var->value = blitter_value;
             return true;
          }
+         if (strcmp(var->key, "virtualjaguar_pertitle_defaults") == 0
+             && getenv("TEST_BENCH_NO_PERTITLE"))
+         {
+            var->value = "disabled";
+            return true;
+         }
          var->value = NULL;
          return false;
       }
