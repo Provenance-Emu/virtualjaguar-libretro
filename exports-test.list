@@ -77,3 +77,6 @@ _shadowFBActive
 _blitMemo*
 _TitleDB*
 _vjtrace_*
+_vjDbgRgbHiresStock
+_vjDbgRgbHiresTagHit
+_vjDbgRgbHiresNonUnif

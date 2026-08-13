@@ -75,6 +75,9 @@
       shadowHiresResolveMissValue;
       shadowHiresResolveMissEpoch;
       shadowHiresResolveMissNoPage;
+      vjDbgRgbHiresStock;
+      vjDbgRgbHiresTagHit;
+      vjDbgRgbHiresNonUnif;
       shadowHiresN;
       shadowFBActive;
       blitMemo*;

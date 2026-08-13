@@ -1013,6 +1013,13 @@ static void tom_render_16bpp_cry_scanline_hires(uint32_t * backbuffer)
  * so adding one here at 2x would make the 2x frame differ from the 1x
  * frame by something that is not supersampling, breaking the
  * box-replication identity this renderer must uphold on every miss. */
+/* THROWAWAY INSTRUMENTATION (issue #382 gate measurement) -- NOT FOR COMMIT.
+ * Distinguishes "the shadow block content is uniform" from "the consumer
+ * receives non-uniform content and drops it at the line-tag check". */
+uint64_t vjDbgRgbHiresStock    = 0;  /* stock pixels rendered */
+uint64_t vjDbgRgbHiresTagHit   = 0;  /* line tag matched -> block used */
+uint64_t vjDbgRgbHiresNonUnif  = 0;  /* of tag hits, block had differing sx */
+
 static void tom_render_16bpp_rgb_scanline_hires(uint32_t * backbuffer)
 {
    unsigned i;
@@ -1063,8 +1070,10 @@ static void tom_render_16bpp_rgb_scanline_hires(uint32_t * backbuffer)
        * no true-color substitution (see comment above). */
       base = RGB16ToRGB32[color];
 
+      vjDbgRgbHiresStock++;
       for (sub = 0; sub < n; sub++)
       {
+         int u;
          ent = NULL;
          if (sfbIdx >= 0 && sfbIdx < SHADOWFB_LINE_PIXELS
                && shadowHiresLineTag[sfbIdx] ==
@@ -1072,6 +1081,16 @@ static void tom_render_16bpp_rgb_scanline_hires(uint32_t * backbuffer)
             ent = shadowHiresLineSub
                 + ((uint32_t)sub * SHADOWFB_LINE_PIXELS + (uint32_t)sfbIdx)
                   * (uint32_t)n;
+         if (ent)
+         {
+            vjDbgRgbHiresTagHit++;
+            for (u = 1; u < n; u++)
+               if (ent[u].value16 != ent[0].value16)
+               {
+                  vjDbgRgbHiresNonUnif++;
+                  break;
+               }
+         }
          for (sx = 0; sx < n; sx++)
          {
             /* A hit renders each entry's raw value16 through the stock
