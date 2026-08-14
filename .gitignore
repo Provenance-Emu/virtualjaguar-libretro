@@ -146,6 +146,7 @@ __pycache__/
 /test/tools/gpu_disasm_dump
 /test/tools/gpu_pipe_probe
 /test/tools/irq_rate_probe
+/test/tools/joymatrix_identity
 /test/tools/m68k_pc_histogram
 /test/tools/menu_step_probe
 /test/tools/present_rate_probe
