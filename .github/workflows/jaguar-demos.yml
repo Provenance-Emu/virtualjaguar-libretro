@@ -51,9 +51,9 @@ concurrency:
 jobs:
   smoke:
     name: JaguarDemos smoke (linux x86_64)
-    # Skip the smoke job when dispatch asked for full-only — the full job
-    # covers that path.  Always run smoke on PR / push.
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke' || inputs.suite == 'full' }}
+    # Smoke on PR/push; on dispatch only when suite=smoke (full job covers
+    # the heavier path when suite=full).
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
