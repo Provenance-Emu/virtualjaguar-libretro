@@ -95,6 +95,13 @@ test/tools/build/
 # Acid-test build outputs
 test/acid/acid_run
 test/acid/tests/**/*.jag
+
+# On-demand JaguarDemos clone (see test/jaguar-demos/PIN)
+test/vendor/
+
+# cart_boot_probe is built on demand by the jaguar-demos / cart matrix
+# runners; never track the Mach-O/ELF binary.
+test/tools/cart_boot_probe
 /test/tools/test_frame_timing
 /test/tools/audio_timeline
 /test/tools/cd_visual_verify

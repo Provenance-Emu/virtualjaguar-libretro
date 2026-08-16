@@ -1,0 +1,16 @@
+# Curated smoke set: one ROM per distinct hardware path.
+# Paths are relative to the JaguarDemos clone root.
+# Prefer vj.j64 / Model-M pads when upstream provides them for VirtualJaguar.
+#
+# Skips in-tree yarc.j64 / jagniccc.j64 (covered by make test + regression).
+# voxelFlight has no committed .j64 (zip-only) — raycast_wip stands in for
+# GPU/DSP-heavy rendering until a rebuild produces a cart image.
+
+yarc_reloaded/cube.j64
+jagniccc2000_reloaded/jagniccc.j64
+jag_ball/jag_ball.j64
+raycast_wip/rc.j64
+nostalgia/nostalgia.j64
+hirez_slideshow/slideshow.j64
+256/Outline2026/Fountain/vj.j64
+poly_engine/polygon.j64
