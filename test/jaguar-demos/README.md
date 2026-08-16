@@ -10,12 +10,14 @@ lives at `test/vendor/JaguarDemos/` (gitignored).
 ## What it checks
 
 Each selected `.j64` is run through `test/tools/cart_boot_probe` (same probe as
-the private cart boot matrix). A ROM **PASS**es when it loads and lights up the
-framebuffer within the frame budget. This is a boot + rendering gate, not a
-screenshot golden or a "finished the demo" certificate.
+the private cart boot matrix on libretro/develop). A ROM **PASS**es when it loads
+and lights up the framebuffer within the frame budget. This is a boot + rendering
+gate, not a screenshot golden or a "finished the demo" certificate.
 
-Known HLE failures (e.g. BootIntros that need a Model-M BIOS) stay in
-`BASELINE.txt` as `[FAIL …]` so they document bugs without blocking CI.
+Known HLE failures (e.g. BootIntros / GPU-only boots that need a Model-M BIOS)
+stay in `BASELINE.txt` as `[FAIL …]` so they document gaps without blocking CI.
+On the initial pin, most size-coded intros FAIL under HLE; a handful of full
+demos (jag_ball, jagniccc variants, hirez_slideshow, gpuobj_hack) PASS.
 
 ## Targets
 
