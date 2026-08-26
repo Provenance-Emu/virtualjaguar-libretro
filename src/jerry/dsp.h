@@ -22,6 +22,11 @@ void DSPExec(int32_t);
 void DSPDone(void);
 void DSPUpdateRegisterBanks(void);
 void DSPSetIRQLine(int irqline, int state);
+/* Slice bookkeeping for the 68K->DSP-local-RAM sync; mirror of
+ * GPUBeginSlice / GPUSliceRemaining / GPUSyncToM68K (issue #456). */
+void DSPBeginSlice(uint32_t riscCycles);
+int32_t DSPSliceRemaining(void);
+void DSPSyncToM68K(void);
 uint8_t DSPReadByte(uint32_t offset, uint32_t who);
 uint16_t DSPReadWord(uint32_t offset, uint32_t who);
 uint32_t DSPReadLong(uint32_t offset, uint32_t who);
@@ -40,6 +45,13 @@ void DSPExecComp(int32_t cycles);
 // Exported vars
 
 extern uint32_t dsp_reg_bank_0[], dsp_reg_bank_1[];
+
+/* Idle-loop fast-forward diagnostics (issue #569).  Counted only on the
+ * cold probe path; read by test/tools, never by the emulator itself. */
+extern uint32_t dsp_idle_skip_fires;
+extern uint32_t dsp_idle_skip_rejects;
+extern uint32_t dsp_idle_skip_iters;
+extern uint32_t dsp_idle_skip_opcodes;
 
 // DSP interrupt numbers (in $F1A100, bits 4-8 & 16)
 

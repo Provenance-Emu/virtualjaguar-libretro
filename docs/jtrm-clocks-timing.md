@@ -34,7 +34,13 @@ SCLK, DAC sample rates, and other derived clocks.
 | CLK2 (video divider) | `$F10012` | system_clock / (2 * (N + 1)) |
 | CLK3 (chroma divider) | `$F10014` | system_clock / (2 * (N + 1)) |
 
-Source: `src/jerry/jerry.c`
+Derived from: `src/jerry/jerry.c` -- NOT verified against the JTRM. **DISAGREEMENT FOUND**
+(see issue #522 report): the manual describes CLK1/CLK2/CLK3 as PLL configuration
+registers marked "Do NOT Modify: For Information Only" with formulas
+`PCLKDIV = (N+1) * CHRDIV` (CLK1/CLK2) and `CHRDIV = chroma_osc / (N+1)` (CLK3) --
+not the `system_clock / (2*(N+1))` formula shown above, which is actually the JERRY
+SCLK ($F1A150) formula (Software Reference Manual v2.4 p.72). See
+`docs/atari-jaguar-1999/03 - Software Reference.pdf` pp. 69-70.
 
 ---
 
@@ -50,14 +56,31 @@ Source: `src/jerry/jerry.c`
 | Back porch (colour burst to active) | 5.7 us | 5.6 us |
 | Active display | 52.0 us | 52.0 us |
 | Front porch | 1.0 us | 1.7 us |
-| Total vertical lines | 524 (262.5 per field) | 625 (312.5 per field) |
+| Halflines per field (VP+1, non-interlaced) | 524 (262 lines) | 624 (312 lines) |
+| Halflines per field (interlaced) | 525 | 625 |
+| **Field rate (non-interlaced)** | **60.05445 Hz** | **50.08013 Hz** |
 | Vertical sync lines | 6 | 5 |
 | Pre-equalizing pulses | 6 | 5 |
 | Post-equalizing pulses | 6 | 5 |
 | Vertical blanking lines | ~20 | ~24 |
 | Active display lines | ~240 | ~256 |
 
-Source: `src/tom/tom.c` (scanline timing, VMODE), `src/tom/op.c` (active display)
+Source: JTRM Rev 10 p.8 "Video Timings" (master clock, periods, vertical
+lines); JTRM Rev 8 p.15 (`VP`: "the number of half lines per field ... one
+more than the value written ... If the number of half lines is odd then the
+display is interlaced", and `HP`: "the period of half a display line ... one
+tick longer than the value written"); `src/tom/op.c` (active display).
+
+The field rate follows from the two rows above: 524 x 31.7778 us =
+16651.56 us -> 60.05445 Hz, and 624 x 32.0 us = 19968.0 us -> 50.08013 Hz.
+Titles run non-interlaced, so 59.94 Hz -- the 262.5-line INTERLACED NTSC
+rate -- is NOT the Jaguar's field rate; 525 halflines would select
+interlace. This is what `retro_get_system_av_info` advertises (issue #392).
+
+The previous version of this row read "524 (262.5 per field) | 625 (312.5
+per field)": internally inconsistent (524 halflines is 262.0 lines) and it
+gave PAL the interlaced value. It also cited `src/tom/tom.c` as its source,
+which is the thing the JTRM is supposed to check.
 
 ### Pixel Clock Divisor (VMODE Register)
 
@@ -132,7 +155,15 @@ period = 11 * 101 / 26.590906 = 41.78 us  -->  ~23,936 Hz
 >
 > If you see `system_clock / 2` in PIT calculations, it is a bug.
 
-Source: `src/jerry/jerry.c`
+Source: Jaguar Software Reference Manual v2.4 pp. 69-71 "Programmable Timers"
+(`docs/atari-jaguar-1999/03 - Software Reference.pdf`) -- "The pre-scalers
+divide the processor clock by N + 1 ... these dividers divide the output from
+the corresponding pre-scalers by N + 1"; corroborated by the INT1/PIT
+description p.14 ("The system clock is divided by (one plus the value in the
+first register) ... The resulting frequency is divided by (one plus the value
+in the second register)"). Both confirm the full-system-clock rate -- the
+CRITICAL GOTCHA above is verified correct, not just asserted. Implementation
+`src/jerry/jerry.c`.
 
 ---
 
@@ -155,8 +186,8 @@ Source: `src/jerry/jerry.c`
 | MEMCON1 | `$F00000` | DRAM width (16/32/64-bit), speed, row size, BIGEND |
 | MEMCON2 | `$F00002` | ROMHI (remap ROM high), additional timing |
 
-Source: `src/core/vjag_memory.c` (header comment has full map),
-`src/core/jaguar.c` (dispatch logic)
+Derived from: `src/core/vjag_memory.c` (header comment has full map),
+`src/core/jaguar.c` (dispatch logic) -- NOT verified against the JTRM
 
 ---
 

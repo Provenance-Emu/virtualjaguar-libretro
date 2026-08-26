@@ -24,6 +24,7 @@
 
 #include "cdrom.h"
 #include "perf_counters.h"
+#include "perf_iface.h"
 #include "jagcd_boot.h"
 #include "jagcd_hle.h"
 #include "dac.h"
@@ -47,8 +48,8 @@ static bool frameDone;
 
 /* Frame-pacing instrumentation (no-op unless built with BENCH_PROFILE).
  * Lets the acid runner / benchmark detect timing regressions like the
- * Doom 2x speed bug -- e.g. expected 525 halflines/frame NTSC, 60 vblank
- * IRQs/sec.  See test/acid/README.md and src/core/perf_counters.h.
+ * Doom 2x speed bug -- e.g. expected 524 halflines/field NTSC (JTRM Rev 10
+ * "Video Timings", non-interlaced), 60.05 vblank IRQs/sec.  See test/acid/README.md and src/core/perf_counters.h.
  * Counters that fire from other TUs are declared at their use sites
  * (PERF_COUNTER backs each name with a file-scope static). */
 PERF_COUNTER(timing_halfline_callbacks);
@@ -179,6 +180,11 @@ extern uint8_t jagMemSpace[];
 #define HLE_EXCEPT_HANDLER_RTE  0x0404
 #define M68K_OP_ADDQ8_SP        0x508F
 #define M68K_OP_RTE             0x4E73
+/* Series K halt island at boot-ROM offset $5DC: ILLEGAL then BRA.S *
+ * ($60FE).  Cart-BIOS mode parks unset exception vectors here so a
+ * trap cannot execute PRNG-filled RAM.  Sticky: this BIOS image never
+ * writes a vector table of its own. */
+#define BIOS_ROM_PARK_PC        0x00E005DC
 
 /* Cart header: byte 0 of the 4-byte CARTRIDGE block at $800400.
  * Bits 1-4 of this byte are the MEMCON1 ROM bus-width/speed bits the
@@ -309,7 +315,32 @@ uint32_t d5Queue[0x400];
 uint32_t d6Queue[0x400];
 uint32_t d7Queue[0x400];
 uint32_t pcQPtr = 0;
+
+/* When set, M68KInstructionHook() also fills the 16 D0-D7/A0-A7 traceback
+ * rings alongside pcQueue.  Default OFF, and that default is the point
+ * (issue #540): filling them costs 16 register fetches plus 16 scattered
+ * stores on EVERY emulated 68K instruction, and NOTHING in the core reads
+ * them -- vjtrace_backtrace() and test/tools/cd_wedge_probe.c both read
+ * pcQueue only, and the 16 register rings are not even exported from the
+ * shipped ABI (only pcQueue/pcQPtr/a6Queue/d0Queue are, and only in the
+ * TEST_EXPORTS list), so a production build cannot observe them at all.
+ *
+ * Their one reader is test/test_wmcj_debug.c, which flips this on before
+ * the first retro_run().  Set it at init, NOT mid-run: pcQPtr advances
+ * either way, so flipping during emulation leaves the register rings a
+ * mix of zeros and live data while pcQueue stays continuous -- a
+ * traceback dump would silently misalign the two. */
 bool startM68KTracing = false;
+
+/* Indexed by the m68k_register_t values M68K_REG_D0..M68K_REG_A7 (0..15),
+ * which is exactly the layout of regs.regs[] (src/m68000/cpudefs.h).  The
+ * rings stay 17 separate symbols rather than one array of structs because
+ * cd_wedge_probe/test_wmcj_debug dlsym them by name. */
+static uint32_t * const m68kRegQueue[16] =
+{
+   d0Queue, d1Queue, d2Queue, d3Queue, d4Queue, d5Queue, d6Queue, d7Queue,
+   a0Queue, a1Queue, a2Queue, a3Queue, a4Queue, a5Queue, a6Queue, a7Queue
+};
 
 /* Halfline-rate 68K PC sampler (BENCH_PROFILE only).  524 samples per
  * field is enough to tell WHICH wait a title's frame loop is parked in
@@ -333,52 +364,62 @@ static bool start = false;
 void M68KInstructionHook(void)
 {
    unsigned i;
-   uint32_t m68kPC = m68k_get_reg(NULL, M68K_REG_PC);
+   /* regs.pc is literally what m68k_get_reg(NULL, M68K_REG_PC) returns
+    * (see m68k_get_reg in src/m68000/m68kinterface.c) -- read it here
+    * instead, because this hook runs once per emulated 68K instruction
+    * and a cross-TU call is not free at that rate. */
+   uint32_t m68kPC = regs.pc;
 
    // For tracebacks...
-   // Ideally, we'd save all the registers as well...
    pcQueue[pcQPtr] = m68kPC;
-   a0Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A0);
-   a1Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A1);
-   a2Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A2);
-   a3Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A3);
-   a4Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A4);
-   a5Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A5);
-   a6Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A6);
-   a7Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_A7);
-   d0Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D0);
-   d1Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D1);
-   d2Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D2);
-   d3Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D3);
-   d4Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D4);
-   d5Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D5);
-   d6Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D6);
-   d7Queue[pcQPtr] = m68k_get_reg(NULL, M68K_REG_D7);
+
+   /* The other 16 registers only when someone is actually going to read
+    * them -- see startM68KTracing above. */
+   if (startM68KTracing)
+   {
+      for (i = 0; i < 16; i++)
+         m68kRegQueue[i][pcQPtr] = regs.regs[i];
+   }
+
    pcQPtr++;
    pcQPtr &= 0x3FF;
 
    if (m68kPC & 0x01)		// Oops! We're fetching an odd address!
       return;
 
-   /* CD HLE jump-table dispatch.  When CD HLE BIOS is active, a small set
-    * of magic PCs in cart ROM space resolve to BIOS routines emulated in
-    * jagcd_hle.c instead of executing the cart bytes.  Returns true if the
-    * hook handled the call (PC/registers updated). */
-   if (JaguarCDHLEHook(m68kPC))
-      return;
+   /* The three hooks below each do a cheap internal check and return
+    * false for the overwhelming majority of titles (plain cart games:
+    * no CD HLE, no Memory Track cart inserted, and -- since cart's
+    * strategy->instruction_hook is NULL -- no boot-strategy hook either).
+    * Gate on the same three conditions directly so that common case pays
+    * three plain reads and one branch instead of three cross-TU calls
+    * every single 68K instruction. Order inside the guard matches the
+    * original unconditional call order exactly (CD HLE, then Memory
+    * Track, then boot strategy) -- only the outer gate is new. */
+   if (hle_active || jaguarMemTrackInserted
+         || (bootConfig.strategy && bootConfig.strategy->instruction_hook))
+   {
+      /* CD HLE jump-table dispatch.  When CD HLE BIOS is active, a small
+       * set of magic PCs in cart ROM space resolve to BIOS routines
+       * emulated in jagcd_hle.c instead of executing the cart bytes.
+       * Returns true if the hook handled the call (PC/registers
+       * updated). */
+      if (JaguarCDHLEHook(m68kPC))
+         return;
 
-   /* Memory Track NVM BIOS dispatcher ($2404) — active for CD content in
-    * BOTH boot modes; the module is RAM-resident on hardware, independent
-    * of which CD BIOS variant booted the disc. */
-   if (NVMBiosHook(m68kPC))
-      return;
+      /* Memory Track NVM BIOS dispatcher ($2404) — active for CD content
+       * in BOTH boot modes; the module is RAM-resident on hardware,
+       * independent of which CD BIOS variant booted the disc. */
+      if (NVMBiosHook(m68kPC))
+         return;
 
-   /* CD boot strategy hook (cart strategy is a no-op for cart games;
-    * HLE/BIOS strategies trap specific PCs to inject boot stubs, patch
-    * auth checks, etc.). */
-   if (bootConfig.strategy && bootConfig.strategy->instruction_hook
-         && bootConfig.strategy->instruction_hook(m68kPC))
-      return;
+      /* CD boot strategy hook (cart strategy has no instruction_hook;
+       * HLE/BIOS strategies trap specific PCs to inject boot stubs,
+       * patch auth checks, etc.). */
+      if (bootConfig.strategy && bootConfig.strategy->instruction_hook
+            && bootConfig.strategy->instruction_hook(m68kPC))
+         return;
+   }
 }
 
 /* Custom UAE 68000 read/write/IRQ functions */
@@ -423,6 +464,53 @@ static int m68kBusNoCharge = 0;
          regs.remainingCycles -= (int32_t)bus_arbiter_m68k_access((addr), (naccesses), m68kClockScalePct); \
    } while (0)
 
+/* A 68000 READ from GPU local RAM samples the state of a coprocessor that
+ * is running concurrently, so the GPU has to be advanced to where the
+ * 68000 already is inside this scheduler slice before the value is taken
+ * -- the exact mirror of the write-side handshake (M68KGPURAMSync, below).
+ *
+ * Without it a mailbox handshake can be read stale.  Doom's GPU job
+ * dispatch (issue #406): the GPU's idle loop re-writes a "done" flag at
+ * $F0304C on every pass, and the 68000 posts a job by clearing $F0304C,
+ * writing the routine address to $F03048, then polling $F0304C until the
+ * GPU sets it again.  The write to $F03048 syncs the GPU up to the 68000's
+ * position; the poll that follows a few 68000 cycles later does not, so the
+ * GPU never gets the cycles in which it would have loaded the command and
+ * cleared the flag.  The 68000 reads the idle loop's leftover 1, concludes
+ * the job is finished before it has started, and consumes the output buffer
+ * while the GPU is still filling it -- Doom then reads a level number of 0
+ * out of a half-written demo header and stops in I_Error("W_GetNumForName:
+ * MAP00 not found!").  On hardware the GPU runs ~2 instructions per 68000
+ * cycle and clears the flag long before the first poll completes.
+ *
+ * Nothing about it is timing-model specific: the read simply samples the
+ * GPU at the wrong point on the time line, so the outcome flips with any
+ * change in 68000 cycle accounting (which is why the wedge moved between
+ * VJ_DRAM_SCALE values instead of appearing past a threshold).
+ *
+ * m68kInLongRead suppresses the sync for the two halves of a 68000 long
+ * read that decomposes into two 16-bit accesses: the GPU is advanced once,
+ * before the pair, so a longword mailbox cannot be sampled with the GPU
+ * having run in between and torn it. */
+static int m68kInLongRead = 0;
+
+static void M68KGPURAMSyncRead(unsigned int address, unsigned int length)
+{
+   if (m68kInLongRead || m68kBusNoCharge)
+      return;
+   if (address < GPU_WORK_RAM_BASE + 0x1000
+       && address + length > GPU_WORK_RAM_BASE)
+      GPUSyncToM68K();
+   /* Same handshake on the DSP side (issue #456 / #408 H3).  Doom's
+    * MiniLoop polls `DSPRead(&dspfinished)`; `_dspfinished` is a long
+    * in dspbase.gas (`.org $f1b000`, DSP local RAM), not D_CTRL /
+    * $F1A100.  The 68K read has to see the DSP that has already run
+    * up to this point in the slice, not the leftover of the previous one. */
+   if (address < DSP_WORK_RAM_BASE + 0x2000
+       && address + length > DSP_WORK_RAM_BASE)
+      DSPSyncToM68K();
+}
+
 unsigned int m68k_read_memory_8(unsigned int address)
 {
 #ifdef ALPINE_FUNCTIONS
@@ -440,6 +528,7 @@ unsigned int m68k_read_memory_8(unsigned int address)
    if (!m68kBusNoCharge)
       VJT_WATCH_RD(address, 0, M68K);
    M68K_BUS_CHARGE(address, 1);
+   M68KGPURAMSyncRead(address, 1);
 
    // Note that the Jaguar only has 2M of RAM, not 4!
    if ((address >= 0x000000) && (address <= 0x1FFFFF))
@@ -484,6 +573,7 @@ unsigned int m68k_read_memory_16(unsigned int address)
    if (!m68kBusNoCharge)
       VJT_WATCH_RD(address, 0, M68K);
    M68K_BUS_CHARGE(address, 1);
+   M68KGPURAMSyncRead(address, 2);
 
    // Note that the Jaguar only has 2M of RAM, not 4!
    if ((address >= 0x000000) && (address <= 0x1FFFFE))
@@ -561,8 +651,18 @@ unsigned int m68k_read_memory_32(unsigned int address)
       return GET32(jaguarMainROM, address - 0x800000);
    }
 
-   /* Fallthrough recurses into _16 twice — charged there, not here. */
-   return (m68k_read_memory_16(address) << 16) | m68k_read_memory_16(address + 2);
+   /* Fallthrough recurses into _16 twice — charged there, not here.
+    * The GPU catch-up runs once for the whole longword instead (see
+    * M68KGPURAMSyncRead): the two halves are one 68000 access as far as
+    * the mailbox handshakes that need it are concerned. */
+   M68KGPURAMSyncRead(address, 4);
+   {
+      unsigned int v;
+      m68kInLongRead++;
+      v = (m68k_read_memory_16(address) << 16) | m68k_read_memory_16(address + 2);
+      m68kInLongRead--;
+      return v;
+   }
 }
 
 
@@ -589,6 +689,9 @@ static void M68KGPURAMSync(unsigned int address, unsigned int length)
    if (address < GPU_WORK_RAM_BASE + 0x1000
        && address + length > GPU_WORK_RAM_BASE)
       GPUSyncToM68K();
+   if (address < DSP_WORK_RAM_BASE + 0x2000
+       && address + length > DSP_WORK_RAM_BASE)
+      DSPSyncToM68K();
 }
 
 /* GPU and DSP local RAM are 32-bit memories, but an external bus master sees
@@ -1141,16 +1244,42 @@ void JaguarInit(void)
 // regardless of whether it's in interlace mode or not.
 // NB2: Seems it doens't always, not sure what the constraint is...)
 //
+/* Video field geometry -- the single source of truth behind the advertised
+ * field rate (issue #392).  Definitions and the JTRM citations live in
+ * jaguar.h; these are the three accessors every consumer uses so the
+ * numbers cannot drift apart between libretro.c and dac.c. */
+double JaguarGetHalflinePeriodUs(void)
+{
+   return vjs.hardwareTypeNTSC ? VJ_HALFLINE_US_NTSC : VJ_HALFLINE_US_PAL;
+}
+
+uint32_t JaguarGetDefaultFieldHalflines(void)
+{
+   return vjs.hardwareTypeNTSC ? VJ_HALFLINES_PER_FIELD_NTSC
+                               : VJ_HALFLINES_PER_FIELD_PAL;
+}
+
+double JaguarGetFieldRateHz(void)
+{
+   return 1000000.0 / ((double)JaguarGetDefaultFieldHalflines()
+                       * JaguarGetHalflinePeriodUs());
+}
+
 // Normally, TVs will render a full frame in 1/30s (NTSC) or 1/25s (PAL) by
 // rendering two fields that are slighty vertically offset from each other.
-// Each field is created in 1/60s (NTSC) or 1/50s (PAL), and every other line
+// Each field is created in 1/60.05445s (NTSC) or 1/50.08013s (PAL) -- see the
+// field-rate derivation below; 60/50 are the round numbers, not the rates --
+// and every other line
 // is rendered in this mode so that each field, when overlaid on each other,
 // will yield the final picture at the full resolution for the full frame.
 //
-// We execute a half frame in each timeslice (1/60s NTSC, 1/50s PAL).
-// Since the number of lines in a FULL frame is 525 for NTSC, 625 for PAL,
-// it will be half this number for a half frame. BUT, since we're counting
-// HALF lines, we double this number and we're back at 525 for NTSC, 625 for PAL.
+// We execute one field in each timeslice.  A field is VP+1 HALF lines, and
+// per JTRM Rev 8 p.15 an odd half-line count selects interlace -- so a
+// non-interlaced field is the even value from the Rev 10 "Video Timings"
+// table: 524 for NTSC, 624 for PAL (525/625 are the interlaced variants).
+// That makes a field 16651.56 us NTSC / 19968.0 us PAL, i.e. 60.05445 Hz
+// and 50.08013 Hz -- not 60/50, and not NTSC's interlaced 59.94 Hz.
+// See JaguarGetFieldRateHz() above and jaguar.h for the full citations.
 //
 // Scanline times are 63.5555... μs in NTSC and 64 μs in PAL
 // Half line times are, naturally, half of this. :-P
@@ -1200,7 +1329,7 @@ void HalflineCallback(void)
       uint32_t halfclks;
       uint32_t charge;
       halfclks = (uint32_t)USEC_TO_RISC_CYCLES(
-                    vjs.hardwareTypeNTSC ? 31.777777777 : 32.0);
+                    JaguarGetHalflinePeriodUs());
       charge = bus_arbiter_op_take() + bus_arbiter_refresh_clocks(halfclks);
       /* Bus occupancy within a halfline cannot exceed the halfline:
        * the emulated OP walks its whole list instantly, so a
@@ -1216,8 +1345,7 @@ void HalflineCallback(void)
 
    /* Blitter bus-time window decays with real time: a blit finishes on
     * its own whether or not anyone is watching (blitter_mmio.c). */
-   BlitterTimingTick(USEC_TO_RISC_CYCLES(
-                        vjs.hardwareTypeNTSC ? 31.777777777 : 32.0));
+   BlitterTimingTick(USEC_TO_RISC_CYCLES(JaguarGetHalflinePeriodUs()));
 
    //Change this to VBB???
    //Doesn't seem to matter (at least for Flip Out & I-War)
@@ -1241,7 +1369,7 @@ void HalflineCallback(void)
       JaguarCDHLEStreamTick();
    }
 
-   SetCallbackTime(HalflineCallback, (vjs.hardwareTypeNTSC ? 31.777777777 : 32.0), EVENT_MAIN);
+   SetCallbackTime(HalflineCallback, JaguarGetHalflinePeriodUs(), EVENT_MAIN);
 }
 
 void JaguarReset(void)
@@ -1311,7 +1439,32 @@ void JaguarReset(void)
    // Only use the system BIOS if it's available...! (it's always available now!)
    // AND only if a jaguar cartridge has been inserted.
    if (vjs.useJaguarBIOS && jaguarCartInserted)
+   {
       memcpy(jaguarMainRAM, jagMemSpace + 0xE00000, 8);
+
+      /* Cart BIOS only.  JaguarReset PRNG-fills RAM[8..] (vectors 2-255)
+       * to mimic power-on DRAM.  Series K never installs a vector table;
+       * it copies SSP+PC, copies workspace to $5000, then a 60-byte
+       * trampoline to $400-$43B (LEA $400 / JMP $400) -- not the vectors.
+       * A GPU-only jagcrypt cart (Fountain, #469) therefore leaves the
+       * 68K with no program after that trampoline.  Illegal/F-line
+       * fetches through PRNG vectors smash GPU RAM / G_PC; the core
+       * then presents 1024-wide frames and RetroArch aborts (max_width
+       * is 652).
+       *
+       * Park traps at the boot ROM BRA.S * ($E005DC), not a RAM stub:
+       * the $400 trampoline would overwrite an HLE-style RTE there.
+       * Skip CD BIOS: that path also sets jaguarCartInserted (the CD
+       * BIOS image is mapped as a cart) and uses ILLEGAL as a deliberate
+       * halt; parking vector 4 would turn that halt into a ROM spin. */
+      if (!bootConfig.isCDGame)
+      {
+         unsigned v;
+
+         for (v = 2; v <= 255; v++)
+            SET32(jaguarMainRAM, v * 4, BIOS_ROM_PARK_PC);
+      }
+   }
    else
    {
       /* For RAM-loaded executables (.abs/.cof/JagServer), park SSP at the
@@ -1343,10 +1496,10 @@ void JaguarReset(void)
       unsigned v;
 
       /* --- Exception vector stubs ---
-       * The real BIOS populates the entire vector table with safe
-       * handlers.  Without this, any exception (bus error, illegal
-       * instruction, etc.) jumps to random PRNG garbage and the CPU
-       * double-faults.  Place RTE stubs in low RAM and fill vectors. */
+       * Series K BIOS does not fill the vector table.  HLE does, with
+       * RTE stubs, so a bus/address error or IRQ does not jump through
+       * PRNG RAM.  Cart BIOS mode parks traps at $E005DC instead (see
+       * JaguarReset above). */
       SET16(jaguarMainRAM, HLE_EXCEPT_HANDLER, M68K_OP_ADDQ8_SP);
       SET16(jaguarMainRAM, HLE_EXCEPT_HANDLER + 2, M68K_OP_RTE);
       SET16(jaguarMainRAM, HLE_EXCEPT_HANDLER_RTE, M68K_OP_RTE);
@@ -1439,7 +1592,7 @@ void JaguarReset(void)
    m68k_pulse_reset();								// Reset the 68000
 
    lowerField = false;								// Reset the lower field flag
-   SetCallbackTime(HalflineCallback, (vjs.hardwareTypeNTSC ? 31.777777777 : 32.0), EVENT_MAIN);
+   SetCallbackTime(HalflineCallback, JaguarGetHalflinePeriodUs(), EVENT_MAIN);
 }
 
 
@@ -1553,10 +1706,11 @@ void JaguarExecuteNew(void)
       double timeDelta;
       uint32_t riscCycles;
 
-      /* GPUBeginSlice/GPUSliceRemaining: part of the GPU's slice may already
-       * have been run from GPUSyncToM68K(), so the end-of-slice call runs only
-       * what is left.  The total per slice is unchanged -- see the comment on
-       * gpuSliceBudget in gpu.c.
+      /* GPUBeginSlice/DSPBeginSlice + *SliceRemaining: part of each
+       * RISC slice may already have been run from GPUSyncToM68K() /
+       * DSPSyncToM68K() on a 68K access into local RAM, so the
+       * end-of-slice call runs only what is left.  The total per slice
+       * is unchanged -- see gpuSliceBudget in gpu.c and issue #456.
        *
        * Clock scales (issue #314) apply here, where the budgets are
        * handed out: the RISC scale widens the GPU+DSP compute budget per
@@ -1571,9 +1725,18 @@ void JaguarExecuteNew(void)
          timeDelta = timeToJerryEvent;
          riscCycles = SCALE_RISC_CYCLES(USEC_TO_RISC_CYCLES(timeDelta));
          GPUBeginSlice(riscCycles);
+         DSPBeginSlice(riscCycles);
+         /* Bracketed at the call site, not inside M68KExecuteWithStalls:
+          * that function returns from inside a branch, and the placement
+          * rule in perf_iface.h requires a single exit between ENTER and
+          * LEAVE.  This is also the more honest reading of "68K slice".
+          * NOTE it is inclusive of RISC cycles run inline from a 68K bus
+          * access -- subtract vj_gpu_sync / vj_dsp_sync to decompose. */
+         VJP_ENTER(VJP_M68K);
          M68KExecuteWithStalls(USEC_TO_M68K_CYCLES(timeDelta));
+         VJP_LEAVE(VJP_M68K);
          GPUExec(GPUSliceRemaining());
-         DSPExec(riscCycles);
+         DSPExec(DSPSliceRemaining());
          SubtractEventTimes(timeDelta, EVENT_MAIN);
          HandleNextEvent(EVENT_JERRY);
       }
@@ -1582,9 +1745,18 @@ void JaguarExecuteNew(void)
          timeDelta = timeToMainEvent;
          riscCycles = SCALE_RISC_CYCLES(USEC_TO_RISC_CYCLES(timeDelta));
          GPUBeginSlice(riscCycles);
+         DSPBeginSlice(riscCycles);
+         /* Bracketed at the call site, not inside M68KExecuteWithStalls:
+          * that function returns from inside a branch, and the placement
+          * rule in perf_iface.h requires a single exit between ENTER and
+          * LEAVE.  This is also the more honest reading of "68K slice".
+          * NOTE it is inclusive of RISC cycles run inline from a 68K bus
+          * access -- subtract vj_gpu_sync / vj_dsp_sync to decompose. */
+         VJP_ENTER(VJP_M68K);
          M68KExecuteWithStalls(USEC_TO_M68K_CYCLES(timeDelta));
+         VJP_LEAVE(VJP_M68K);
          GPUExec(GPUSliceRemaining());
-         DSPExec(riscCycles);
+         DSPExec(DSPSliceRemaining());
          SubtractEventTimes(timeDelta, EVENT_JERRY);
          HandleNextEvent(EVENT_MAIN);
       }
