@@ -66,6 +66,12 @@ cmd_fetch() {
 }
 
 have_jag_toolchain() {
+    local toolchain_env="${REPO_ROOT}/tools/vendor/jaguar-toolchain"
+    if [ -d "${toolchain_env}" ] && [ -z "${BJL_ROOT:-}" ]; then
+        # Local toolchain fetched/built by tools/jaguar-toolchain/setup.sh
+        # but not yet sourced into this shell -- source it now.
+        eval "$("${REPO_ROOT}/tools/jaguar-toolchain/setup.sh" env 2>/dev/null)" || true
+    fi
     command -v lyxass >/dev/null 2>&1 \
         && command -v rmac >/dev/null 2>&1 \
         && command -v rln >/dev/null 2>&1 \
@@ -151,13 +157,15 @@ rom_rank() {
     base="$(basename "$1" .j64)"
     case "${base}" in
         vj) echo 0 ;;
-        *_M|*_m) echo 1 ;;
-        *_K|*_k) echo 3 ;;
+        *_K|*_k) echo 1 ;;
+        *_M|*_m) echo 3 ;;
         *) echo 2 ;;
     esac
 }
 
-# Prefer vj.j64, then Model-M, then unsuffixed, then _K — one ROM per directory.
+# Prefer vj.j64, then Series K, then unsuffixed, then _M — one ROM per
+# directory.  The embedded cart boot ROM is Series K; Model-M pads wait
+# until virtualjaguar_bios_type=m is selected.
 select_roms_full() {
     local tmp best_file f rel dir rank best_rank cur
     tmp="$(mktemp)"
@@ -207,8 +215,20 @@ select_roms_smoke() {
 
 frames_for() {
     case "$1" in
-        64/*|128/*|256/*|512/*) echo 180 ;;
+        64/*|128/*|256/*|512/*) echo 300 ;;
         *) echo 600 ;;
+    esac
+}
+
+# BootIntros / GPU-only carts replace BIOS-decrypted GPU code.  HLE jumps
+# to $802000 and never lights the framebuffer.  Match JaguarDemos
+# Rules.launch (BIOS=1, PAL default).
+needs_bios() {
+    case "$1" in
+        64/*|128/*|256/*|512/*) return 0 ;;
+        yarc_reloaded/*|yarc_in_main/*|jagniccc2000_reloaded/*|nostalgia/*) return 0 ;;
+        poly_engine/*) return 0 ;;
+        *) return 1 ;;
     esac
 }
 
@@ -241,13 +261,23 @@ log_path() {
 }
 
 run_one() {
-    local core="$1" rel="$2" frames out status line rc
+    local core="$1" rel="$2" frames out status line rc extra
     frames="$(frames_for "${rel}")"
     out="$(log_path "${rel}")"
     mkdir -p "$(dirname "${out}")" "${LOGDIR}"
     set +e
-    "${PROBE}" "${core}" "${VENDOR_DIR}/${rel}" --frames "${frames}" --quiet \
-        >"${out}" 2>&1
+    if needs_bios "${rel}"; then
+        extra=(--bios --option virtualjaguar_pal=enabled)
+        case "$(basename "${rel}" .j64)" in
+            *_M|*_m) extra+=(--option virtualjaguar_bios_type=m) ;;
+        esac
+        "${PROBE}" "${core}" "${VENDOR_DIR}/${rel}" --frames "${frames}" --quiet \
+            "${extra[@]}" \
+            >"${out}" 2>&1
+    else
+        "${PROBE}" "${core}" "${VENDOR_DIR}/${rel}" --frames "${frames}" --quiet \
+            >"${out}" 2>&1
+    fi
     rc=$?
     set -e
     line="$(grep -E '^CARTPROBE ' "${out}" | tail -1 || true)"

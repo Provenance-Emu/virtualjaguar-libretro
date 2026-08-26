@@ -31,7 +31,6 @@
 #include "harness/harness.h"
 
 #define FOUNTAIN_ROM_DEFAULT "/tmp/fountain_vj.j64"
-#define DUMMY_CART_PATH      "/tmp/vj_dummy_cart_469.j64"
 #define DUMMY_CART_SIZE      131072u
 #define BIOS_ROM_PARK_PC     0x00E005DCu
 #define MAX_PRESENT_WIDTH    652u
@@ -105,10 +104,34 @@ static int check_parked_vectors(harness_config *cfg)
     return 1;
 }
 
+static int check_boot_rom_image(harness_config *cfg, int want_m)
+{
+    uint8_t *space;
+    uint8_t *want;
+    unsigned i;
+
+    space = (uint8_t *)harness_dlsym(cfg, "jagMemSpace");
+    want = (uint8_t *)harness_dlsym(cfg,
+          want_m ? "jaguarBootROM_M" : "jaguarBootROM");
+    if (!space || !want) {
+        fprintf(stderr, "FAIL: jagMemSpace/jaguarBootROM%s not exported\n",
+                want_m ? "_M" : "");
+        return 0;
+    }
+    for (i = 0; i < 16; i++) {
+        if (space[0xE00000u + i] != want[i]) {
+            fprintf(stderr, "FAIL: boot ROM[%u] = $%02X want $%02X (%s)\n",
+                    i, space[0xE00000u + i], want[i], want_m ? "M" : "K");
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
     harness_config cfg = HARNESS_CONFIG_DEFAULT;
-    harness_result results[2];
+    harness_result results[3];
     unsigned nres;
     const char *live_rom;
     int live_requested;
@@ -121,7 +144,17 @@ int main(int argc, char **argv)
     unsigned early_ok;
     unsigned width_ok;
     char dummy_detail[80];
+    char m_detail[80];
     char live_detail[160];
+    char dummy_cart_path[64];
+
+    /* Per-process scratch path: two concurrent `make test` suites would
+     * otherwise write/read the same dummy cart file. FOUNTAIN_ROM_DEFAULT
+     * stays fixed -- it names a well-known spot for a manually-placed,
+     * read-only optional ROM, and the Makefile checks that literal path
+     * too. */
+    snprintf(dummy_cart_path, sizeof(dummy_cart_path),
+             "/tmp/vj_dummy_cart_469_%ld.j64", (long)getpid());
 
     cfg.frames = 180;
     cfg.use_bios = 1;
@@ -137,24 +170,47 @@ int main(int argc, char **argv)
     dummy_ok = 0;
     live_ok = 1;
 
-    if (!write_dummy_cart(DUMMY_CART_PATH)) {
-        fprintf(stderr, "FAIL: cannot write dummy cart %s\n", DUMMY_CART_PATH);
+    if (!write_dummy_cart(dummy_cart_path)) {
+        fprintf(stderr, "FAIL: cannot write dummy cart %s\n", dummy_cart_path);
         harness_shutdown(&cfg);
         return 1;
     }
-    cfg.rom_path = DUMMY_CART_PATH;
+    cfg.rom_path = dummy_cart_path;
     if (!harness_load_rom(&cfg)) {
         harness_shutdown(&cfg);
         return 1;
     }
-    dummy_ok = check_parked_vectors(&cfg);
+    dummy_ok = check_parked_vectors(&cfg) && check_boot_rom_image(&cfg, 0);
     snprintf(dummy_detail, sizeof(dummy_detail),
-             "vectors 2-255 parked at $%08X", BIOS_ROM_PARK_PC);
+             "vectors 2-255 parked at $%08X, Series K ROM mapped",
+             BIOS_ROM_PARK_PC);
     results[nres].status = dummy_ok ? "PASS" : "FAIL";
     results[nres].name   = "bios_cart_vector_park";
     results[nres].detail = dummy_detail;
     nres++;
     harness_shutdown(&cfg);
+
+    if (!dummy_ok)
+        return 1;
+
+    if (!harness_init_from_args(&cfg, argc, argv))
+        return 1;
+    cfg.use_bios = 1;
+    cfg.rom_path = dummy_cart_path;
+    harness_set_option(&cfg, "virtualjaguar_bios_type", "m");
+    if (!harness_load_rom(&cfg)) {
+        harness_shutdown(&cfg);
+        return 1;
+    }
+    dummy_ok = check_boot_rom_image(&cfg, 1);
+    snprintf(m_detail, sizeof(m_detail),
+             "Model-M boot ROM mapped at $E00000");
+    results[nres].status = dummy_ok ? "PASS" : "FAIL";
+    results[nres].name   = "bios_cart_model_m_map";
+    results[nres].detail = m_detail;
+    nres++;
+    harness_shutdown(&cfg);
+    remove(dummy_cart_path);
 
     if (!dummy_ok)
         return 1;

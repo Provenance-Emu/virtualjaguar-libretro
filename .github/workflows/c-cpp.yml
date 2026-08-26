@@ -234,10 +234,94 @@ jobs:
         COUNT=$(nm -gU "${{ matrix.config.artifact }}" | wc -l | tr -d ' ')
         echo "==> Production exports: ${COUNT} (all retro_*)"
 
+    # Tier-1 private ROM corpus (~22 MB) from a private S3-compatible bucket.
+    # Without it `make test` runs green while SKIPPING the audio pair, the
+    # clipping sentinels and every other check that needs a commercial ROM --
+    # a green run that tested none of the things that catch regressions.
+    #
+    # Cached on the manifest hash, so a hit costs no egress at all and only a
+    # manifest change re-downloads. Secrets are absent on fork PRs by design;
+    # the step is best-effort there and `make test` falls back to skipping,
+    # exactly as it does today.
+    - name: Cache Tier-1 ROMs
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      uses: actions/cache@v6
+      with:
+        path: test/roms/tier1
+        key: vj-roms-tier1-${{ hashFiles('test/roms/tier1.manifest') }}
+
+    - name: Fetch Tier-1 ROMs
+      id: roms
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      continue-on-error: true
+      env:
+        # Two backends; rom-store.sh picks whichever is configured (GitHub
+        # wins when VJ_ROM_GH_REPO is set). Set one group of secrets, not both.
+        #
+        # GitHub backend: VJ_ROM_GH_TOKEN must be a fine-grained PAT with
+        # read-only Contents on the ROM repo. The built-in GITHUB_TOKEN cannot
+        # be used -- it is scoped to THIS repository and cannot read another
+        # private one, which fails as a 404 rather than a permission error.
+        VJ_ROM_GH_REPO: ${{ secrets.VJ_ROM_GH_REPO }}
+        GH_TOKEN: ${{ secrets.VJ_ROM_GH_TOKEN }}
+        # S3 backend (Cloudflare R2 etc.)
+        VJ_ROM_ENDPOINT: ${{ secrets.VJ_ROM_ENDPOINT }}
+        VJ_ROM_BUCKET: ${{ secrets.VJ_ROM_BUCKET }}
+        VJ_ROM_KEY: ${{ secrets.VJ_ROM_KEY }}
+        VJ_ROM_SECRET: ${{ secrets.VJ_ROM_SECRET }}
+      run: |
+        set +e
+        bash scripts/rom-store.sh fetch
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+          echo "roms=1" >> "$GITHUB_OUTPUT"
+        elif [ "$rc" -eq 77 ]; then
+          echo "::notice::Tier-1 ROM store not configured -- ROM-gated checks will skip."
+          echo "roms=0" >> "$GITHUB_OUTPUT"
+        else
+          # A configured store that FAILS is not the same as an absent one and
+          # must be visible, even though this step does not block the build.
+          echo "::warning::Tier-1 ROM fetch FAILED (rc=$rc) -- ROM-gated checks will skip."
+          echo "roms=0" >> "$GITHUB_OUTPUT"
+        fi
+        exit 0
+
     # Host/native toolchains only — skips cross-compile rows (e.g. aarch64 on x86 runner).
     - name: Run cheat engine unit tests
       if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross && runner.os != 'Windows' }}
+      env:
+        # Only set when the fetch actually produced a verified tree. Pointing
+        # this at an empty directory would make find-rom.sh miss everything
+        # and turn every ROM-gated check into a silent skip.
+        ROMS_PRIVATE_ROOT: ${{ steps.roms.outputs.roms == '1' && 'test/roms/tier1' || '' }}
       run: make test CC="${{ matrix.config.cc }}"
+
+    # Standalone libchdr + committed fixtures. No core dlopen, so this
+    # also runs on Windows MSYS2 where `make test` is skipped.
+    - name: CHD fixture unit tests
+      if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross }}
+      run: |
+        # Compile with $CC directly. `make` of these targets after `make test`
+        # flips the ABI stamp and deletes the core library.
+        CC="${{ matrix.config.cc }}"
+        INCFLAGS="-I. -Isrc -Isrc/core -Isrc/tom -Isrc/jerry -Isrc/cd -Isrc/bios -Isrc/m68000 -Ilibretro-common/include -Ideps/libchdr/include -Ideps/libchdr/deps/lzma-25.01/include -Ideps/libchdr/deps/miniz-3.1.1 -Ideps/libchdr/deps/zstd-1.5.7"
+        LIBCHDR="-D_7ZIP_ST -DWANT_RAW_DATA_SECTOR=1 -DWANT_SUBCODE=1 -DVERIFY_BLOCK_CRC=1"
+        $CC -O2 -Wall -std=c99 $INCFLAGS $LIBCHDR \
+          -o tools/jagcd/jagcd-chd-check tools/jagcd/jagcd-chd-check.c deps/libchdr/unity.c
+        $CC -O2 -Wall -Wno-unused-function -Wno-unused-variable -std=c99 $INCFLAGS $LIBCHDR \
+          -o test/test_chd_unit test/test_chd_unit.c deps/libchdr/unity.c
+        ./tools/jagcd/jagcd-chd-check test/roms/synth_jagcd.chd
+        if ./tools/jagcd/jagcd-chd-check test/roms/synth_jagcd_nosession.chd; then
+          echo "jagcd-chd-check: expected exit 1 on synth_jagcd_nosession.chd"
+          exit 1
+        else
+          rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "jagcd-chd-check: unexpected $rc"
+            exit "$rc"
+          fi
+        fi
+        ./test/test_chd_unit
 
     - name: Run SIMD blitter tests
       if: ${{ !matrix.config.emscripten && !matrix.config.android && !matrix.config.cross }}
@@ -388,18 +472,22 @@ jobs:
       run: |
         cl.exe /c /W3 /O2 /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE ^
           /I. /Isrc /Isrc\core /Isrc\tom /Isrc\jerry /Isrc\cd /Isrc\bios /Isrc\m68000 /Ilibretro-common\include ^
+          /Ideps\libchdr\include /Ideps\libchdr\deps\lzma-25.01\include /Ideps\libchdr\deps\miniz-3.1.1 /Ideps\libchdr\deps\zstd-1.5.7 ^
           /D__LIBRETRO__ /DINLINE="_inline" /DBLITTER_SIMD_SCALAR ^
+          /D_7ZIP_ST /DMINIZ_DEFLATE_APIS /DWANT_RAW_DATA_SECTOR=1 /DWANT_SUBCODE=1 /DVERIFY_BLOCK_CRC=1 ^
           libretro.c ^
-          src\tom\blitter.c src\tom\blitter_compare.c src\tom\blitter_mmio.c src\jerry\dac.c src\jerry\dsp.c src\core\file.c ^
+          src\tom\blitter.c src\tom\blitter_compare.c src\tom\blitter_mmio.c src\tom\texdump.c src\tom\texreplace.c src\jerry\dac.c src\jerry\dsp.c src\core\file.c ^
           src\tom\gpu.c src\core\jaguar.c src\jerry\jerry.c src\tom\tom.c src\tom\op.c ^
-          src\cd\cdintf.c src\cd\cdrom.c src\core\crc32.c src\core\event.c ^
+          src\cd\cdintf.c src\cd\cdrom.c src\core\crc32.c src\core\biosdb.c src\core\event.c ^
           src\jerry\eeprom.c src\core\filedb.c src\jerry\joystick.c src\core\settings.c ^
           src\core\memtrack.c src\core\vjag_memory.c src\core\cheat.c ^
-          src\core\universalhdr.c src\jerry\wavetable.c ^
+          src\core\universalhdr.c src\jerry\wavetable.c src\jerry\voicemodem.c ^
           src\bios\jagbios.c ^
+          src\bios\jagbios_m.c ^
           src\bios\jagcdbios.c src\bios\jagdevcdbios.c ^
           src\m68000\m68kinterface.c ^
-          src\tom\blitter_simd_scalar.c
+          src\tom\blitter_simd_scalar.c ^
+          deps\libchdr\unity.c
 
     # The shape Makefile.common now selects for windows_msvc2015/2017
     # x64 and x86: blitter.c inlines blitter_simd_sse2.h, so cl.exe
