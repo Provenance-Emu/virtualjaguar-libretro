@@ -1,0 +1,34 @@
+# Keep the Provenance fork's `provenance` branch merged with libretro master.
+#
+# `provenance` = libretro master + the patches Provenance carries (pending
+# upstream PRs, the site publisher). Core-VirtualJaguar pins this branch and
+# its own daily workflow opens a bump PR when the tip moves.
+#
+# This is the API behind GitHub's "Sync fork" button: a merge commit, or a
+# fast-forward when nothing is carried. A conflict (a carried patch that
+# upstream changed) returns 409 and fails the run -- resolve it by hand.
+#
+# GITHUB_TOKEN may not push commits that touch .github/workflows, which a
+# master merge often does. Set UPSTREAM_SYNC_TOKEN (a PAT with `repo` and
+# `workflow`) and the job uses it instead.
+name: Sync provenance with libretro master
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '11 6 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository == 'Provenance-Emu/virtualjaguar-libretro'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge libretro master into provenance
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/merge-upstream" \
+            -f branch=provenance --jq '"\(.merge_type): \(.message)"'
