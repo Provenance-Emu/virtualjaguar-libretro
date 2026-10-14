@@ -48,8 +48,14 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      # --releases-from-github gives the Download page direct links to the
+      # files on the latest release and the nightly (fetched from
+      # libretro/virtualjaguar-libretro by name).  A failed fetch fails the
+      # run, so a transient API error keeps the previous deployment.
       - name: Build site
-        run: python3 scripts/build_site.py
+        run: python3 scripts/build_site.py --releases-from-github
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Verify output
         # Fails the run before anything is published if the generated
