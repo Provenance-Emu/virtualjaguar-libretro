@@ -13,13 +13,13 @@
     "sources": [
       {
         "author": "jguffer",
-        "commit": "24211503339a969f8494b8e189b8f2aa0cb9eba6",
-        "commit_date": "2026-04-15",
+        "commit": "1111111111111111111111111111111111111111",
+        "commit_date": "2026-05-01",
         "credit": "Cheats by jguffer (https://github.com/jguffer/BigPEmu_Scripts), converted by the Virtual Jaguar project with the author's permission.",
         "id": "jguffer",
         "permission": "jguffer, the author of BigPEmu_Scripts and of #1050, gave the maintainer permission to convert and use the scripts (see libretro/virtualjaguar-libretro#1071 and #1050). The repository has no license file.",
         "repo": "jguffer/BigPEmu_Scripts",
-        "url": "https://github.com/jguffer/BigPEmu_Scripts/tree/24211503339a969f8494b8e189b8f2aa0cb9eba6"
+        "url": "https://github.com/jguffer/BigPEmu_Scripts/tree/1111111111111111111111111111111111111111"
       }
     ]
   },
@@ -55,7 +55,7 @@
         ]
       ],
       "partial": true,
-      "sha256": "9dde3787372d8a29113e44c8ea6cbfe6824ef6ba5e8d86f5963fe92750f01408",
+      "sha256": "cb2e9ec7095a636edb4048e587730eac907ef97f7ed099cde9641f67e7999ac2",
       "sources": [
         {
           "converted": 5,
@@ -66,7 +66,7 @@
         }
       ],
       "title": "Raiden",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 10
     },
     {
@@ -84,7 +84,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "cd8273ba9478ef5280a4236c8f791ac7b336faa2af036fd474f5d9162c02460d",
+      "sha256": "87c04602677ffbb6e03a23d0c74d1ba3585e7edcf3788a3c98de349f5bee9c30",
       "sources": [
         {
           "converted": 3,
@@ -95,7 +95,7 @@
         }
       ],
       "title": "Iron Soldier",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 9
     },
     {
@@ -111,7 +111,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "4b04f916f74fbcab0a347d5243f5fd040bee67454f0ae4f2b385c6fb0a5b5771",
+      "sha256": "e28f755e8929df208c4636f20aed914c14dcc0bea220b3546580aeb108d80947",
       "sources": [
         {
           "converted": 1,
@@ -129,7 +129,7 @@
         }
       ],
       "title": "Kasumi Ninja",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     },
     {
@@ -145,7 +145,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "c0722f80ee1077ae945f5b71d0ff674743cfb989e4ad278385ff868cfa222d40",
+      "sha256": "a82d287c6978578ac4fcc5f4847fd06e90055f78f75087caf75ec3c4d21be478",
       "sources": [
         {
           "converted": 1,
@@ -156,7 +156,7 @@
         }
       ],
       "title": "Ultra Vortek",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     },
     {
@@ -179,7 +179,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "f3142654541195f90e69e66115264f44002e1e49ddc5f52436ce7989fd0b46bc",
+      "sha256": "0ee6643de9aafa3d4a25d0a69911eb6d6d2c7c464da0f448e825cde5f56494b0",
       "sources": [
         {
           "converted": 2,
@@ -190,7 +190,7 @@
         }
       ],
       "title": "Power Drive Rally",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 2
     },
     {
@@ -206,7 +206,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "b113d934c395aad51743b6698efef05d2334cab403cc1a25804de0c821424733",
+      "sha256": "290615fb5ed519c10365a786175c3cf37423d38b38d9de85b9f54757000d0c2c",
       "sources": [
         {
           "converted": 4,
@@ -217,7 +217,7 @@
         }
       ],
       "title": "Trevor McFur in the Crescent Galaxy",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 12
     },
     {
@@ -270,7 +270,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "3a0a07f6897daf9bc388735f4329984b73a1f3196c238625cb4a96c3f034232e",
+      "sha256": "aa898bdb953915c21529d362454ce34e0aa9596f748985f0471a27a75847141e",
       "sources": [
         {
           "converted": 4,
@@ -288,7 +288,7 @@
         }
       ],
       "title": "Defender 2000",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 7
     },
     {
@@ -304,7 +304,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "2239079d6522295e09ac00dca980bd5a699c655e178f5cc9bf6dcb84227567cb",
+      "sha256": "33e501f18d52260603d3b80336b7f9c8f48b302c8b97835e30f24b946c053ed9",
       "sources": [
         {
           "converted": 1,
@@ -315,7 +315,7 @@
         }
       ],
       "title": "Double Dragon V",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     },
     {
@@ -331,7 +331,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "8f04df27feac652839f9b977b0942b5a6e558fddc137d662eceffa3ba6e6fb4d",
+      "sha256": "578f26f1f042c0c50032505a5b4c705e124a9b2e675b3ab19d9059f869bf904b",
       "sources": [
         {
           "converted": 3,
@@ -342,7 +342,7 @@
         }
       ],
       "title": "Skyhammer",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 10
     },
     {
@@ -358,7 +358,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "354dba7443301b6fd66f0a28782ca030deab2e283e128967adfb9dda06481134",
+      "sha256": "127279ba7f1ea0ecb063b2998f2970ac6d172cc6e20cb66a70058773fdee8af7",
       "sources": [
         {
           "converted": 1,
@@ -369,7 +369,7 @@
         }
       ],
       "title": "Theme Park",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 2
     },
     {
@@ -392,7 +392,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "c95d63c639ee77109607cb3f8aa37d9fe077cc29736ac87a53238a525ebeaf87",
+      "sha256": "317a396b0aaad49cb5033d04505fc523ff4496ed92dcf7e164604e47ebf702a3",
       "sources": [
         {
           "converted": 5,
@@ -403,7 +403,7 @@
         }
       ],
       "title": "Hover Strike",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 13
     },
     {
@@ -419,7 +419,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "b30e11460c02a85ae66d6563cce6d419eb427fee3003a83bd9b5dd79b21dbcbb",
+      "sha256": "142cf1befb50062d3d0c540dfc334a03dd43b42b06a0215435e6a2b6eba2e113",
       "sources": [
         {
           "converted": 8,
@@ -430,7 +430,7 @@
         }
       ],
       "title": "Doom - Evil Unleashed",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 21
     },
     {
@@ -446,7 +446,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "3eec811925577c72ac2f83d70e7b8a9e49ba28d68c22bb353296ad9deddbb495",
+      "sha256": "3164bde4810f7e6ffaa1be594f483e9171ee704b678364b74affac1df77d669f",
       "sources": [
         {
           "converted": 2,
@@ -457,7 +457,7 @@
         }
       ],
       "title": "Tempest 2000",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 2
     },
     {
@@ -473,7 +473,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "8b840a38fa7a03405eac3e44aeb01fbc0346cac5c826f0251143438917bf2173",
+      "sha256": "0c8b256ded37e99d0ac4b079ae6672119b1cb4eae1eae7444792540865cd35e8",
       "sources": [
         {
           "converted": 1,
@@ -484,7 +484,7 @@
         }
       ],
       "title": "Super Burnout",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     },
     {
@@ -500,7 +500,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "8eb98c26e1ba386cf9606405a2ecf80ae15502b73185f400116d67f3f1823009",
+      "sha256": "cfc2e51a755f05ef348abb285f5968eda3dc1ebfd6ca703ec05e777284bfb3de",
       "sources": [
         {
           "converted": 3,
@@ -511,7 +511,7 @@
         }
       ],
       "title": "Pitfall - The Mayan Adventure",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 5
     },
     {
@@ -527,7 +527,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "01f2f9feae131a518a37fcd9b25165a5b6e6c4e6b0131f0086a5d5de8711b816",
+      "sha256": "58d1c5a593642ddfacd35c48c2a3cfeea1d8a0082921ca9bf1e78a880fb89ec1",
       "sources": [
         {
           "converted": 4,
@@ -538,7 +538,7 @@
         }
       ],
       "title": "Rayman",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 8
     },
     {
@@ -561,7 +561,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "c91e48774e88ed1accaaed26dcad4d9cd947d80a16e9ce1f5fae2a387f994b17",
+      "sha256": "4d8190d65f6df559dc896b5ce1db801d52c370af567f78fb9ffdad9281c7dc17",
       "sources": [
         {
           "converted": 1,
@@ -572,7 +572,7 @@
         }
       ],
       "title": "Val D'Isere Skiing & Snowboarding",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     },
     {
@@ -588,7 +588,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "b4b13f7f061aa6875cc3f5f9aa38696c9c2cd0c2fd79c85e0cd4acef1592b956",
+      "sha256": "ab576f9045f3a9121cf6800711085f1ff9efbb87ce5785e505e835d959f074c0",
       "sources": [
         {
           "converted": 2,
@@ -599,7 +599,7 @@
         }
       ],
       "title": "Towers II",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 8
     },
     {
@@ -628,7 +628,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "ec605c4d9c0cbdab9d9763b4eac7d9d17b33c8b091507f2665cbc945b2d81b57",
+      "sha256": "f0e2bc054912c5f134735151f94aa8c82cd756f698fea8726d5410aa4725c216",
       "sources": [
         {
           "converted": 4,
@@ -639,7 +639,7 @@
         }
       ],
       "title": "Attack of the Mutant Penguins",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 10
     },
     {
@@ -668,7 +668,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "071a741cadcd1e092483e0329fb7b4a650833aa2b0627a9dc50788dd6938f887",
+      "sha256": "092fa55c62e8d0bf0da4e2bd570fd0855e63d01f82568a3120b5306e83614f07",
       "sources": [
         {
           "converted": 1,
@@ -686,7 +686,7 @@
         }
       ],
       "title": "Missile Command 3D",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 29
     },
     {
@@ -709,7 +709,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "b6c0c2399f51e8a2d27e8571359c846ba5c51d7547f06b6b707f18568c4fef29",
+      "sha256": "2f7beccfe0c55da57375fcc25d870e2fd0dbe7b81014777d8bfe63d40db03c23",
       "sources": [
         {
           "converted": 2,
@@ -720,7 +720,7 @@
         }
       ],
       "title": "Atari Karts",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 3
     },
     {
@@ -755,7 +755,7 @@
       ],
       "overlaps": [],
       "partial": true,
-      "sha256": "654a79cf2be90b11480b5d69f36c21c17be3caabc76fa09eaa623e6e8fe1d8c0",
+      "sha256": "df81b1a7780a0e7b27356db7d9ac4859a46cd6b65dbc1c4ec842a791b9281c4b",
       "sources": [
         {
           "converted": 4,
@@ -766,7 +766,7 @@
         }
       ],
       "title": "Wolfenstein 3D",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 10
     },
     {
@@ -782,7 +782,7 @@
       "notes": [],
       "overlaps": [],
       "partial": false,
-      "sha256": "52644419041ddb9a03a051c5c9d92c84efb3b9c54a482fbb8b69c6c9f56099f5",
+      "sha256": "7ac7ea4ac2a0b46810b90ff5a4fee18abe1d9bef7353f778b3d1da8c4eacb48f",
       "sources": [
         {
           "converted": 1,
@@ -793,7 +793,7 @@
         }
       ],
       "title": "Super Cross 3D",
-      "updated": "2026-04-15",
+      "updated": "2026-05-01",
       "writes": 1
     }
   ],

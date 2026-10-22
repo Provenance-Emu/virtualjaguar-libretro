@@ -18,7 +18,7 @@ settings the converter cannot express yet.
 
 ## Sources
 
-- `jguffer`: https://github.com/jguffer/BigPEmu_Scripts/tree/24211503339a969f8494b8e189b8f2aa0cb9eba6 (commit date 2026-04-15)
+- `jguffer`: https://github.com/jguffer/BigPEmu_Scripts/tree/1111111111111111111111111111111111111111 (commit date 2026-05-01)
 
 ## How it is generated
 
