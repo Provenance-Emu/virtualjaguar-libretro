@@ -723,3 +723,66 @@ to 0.09% -- which is what makes the check sharp enough to catch a drift.
 (5 checks) and the 16 68000 ALU forms.  `run_demo.sh` gained a `sine`
 mode, so `run_demo.sh sine --wav` renders the fitted sine to a WAV and
 plays it with no emulator at all.
+
+## 12. UPDATE (2026-11-01) — the visible explosion, on the GPU RISC
+
+The 2-deep schedule had been *proven* in the headless pair (bit-exact data
+check + a 14142/18497 tick delta + score 9 vs 4101) but never *seen*:
+`benchdemo_particles.j64` draws its own picture with the 68000, on
+purpose, so that the thing you watch cannot silently become the thing
+being measured.  This is the watchable counterpart, `benchdemo_gpuparticles.j64`
+-- same picture, but 256 particles simulated and plotted by the GPU.
+
+### 12.1 The split, and why
+
+* **68K**: display setup (`VMODE`/`VDB`/`VDE`), the object list, the seed,
+  the shadow clear, the framebuffer clear, and -- per field -- the wait
+  for blanking above VDB, the OP re-arm with the front buffer, the flip.
+  That code is delicate (re-arm exactly once per field, DATA before
+  HEIGHT/LINK) and was already proven, so it is reused verbatim.
+* **GPU**: erase the back buffer through its shadow table, integrate and
+  bounce, plot, rewrite the shadow.  One command block at `$00113000`
+  (`GO`, `FRAME`, `DONE`, `BACK`, `SHADOW`, `GPUFRAMES`) carries the
+  handshake; the 68K arms the OP, sets GO, blocks on DONE, flips.
+
+A 2x2 block is **two 32-bit stores** rather than four 16-bit ones: two
+pixels fit one longword, so `colour<<16 | colour` paints a whole row of
+the block in one store.  That needs an even x, which the seed guarantees
+(velocities masked, reflections preserve parity) -- no masking in the
+hot loop.  The 68K demo's 64-particle budget was a 68000 limit (320
+16-bit DRAM writes ≈ 6 ms of a 16.6 ms field); with longword stores the
+GPU handles 256 particles comfortably.
+
+### 12.2 Three bugs, in the order they appeared
+
+1. **`andi.l #$FFFE` in the seed.**  A 16-bit mask, so it cleared the top
+   half of every velocity: -16 became +65520.  All 256 particles left the
+   screen on the first field, the erase pass addressed memory far outside
+   the framebuffer, and the picture was empty.  Found by reading the
+   particle table after one frame (`--ram-out`) instead of trusting the
+   picture.
+2. **The idle loop tested DONE as if it were GO.**  The frame body walks a
+   cursor (`r8`) through the command block, so after a frame it points at
+   DONE; the return to `idle` left it there.  Symptom: the GPU free-ran
+   (particles integrated ~8x more often than the 68K's frame counter
+   said).  Fix: `movei #CMD,r8` at the *top* of `idle`.
+3. **"Non-zero means go" was forgeable.**  With the velocities fixed this
+   nearly disappeared, but the erase can still write the background
+   longword outside its framebuffer if a particle ever leaves the screen
+   -- and `$00010001` landing on the command block is a valid "go".
+   Fix: GO is a magic word (`$5A5A0001`), DONE likewise (`$5A5A0002`);
+   a background write cannot forge either.
+
+A GPU-side frame counter in the command block (`CMD+20`) is what separated
+(2) from "the emulator is just slow": 68K frames and GPU frames could be
+compared directly.
+
+### 12.3 Measured
+
+`make demos` (90 frames): 256 particles, all on screen, every frame lit
+after warm-up, 64 distinct hues, lit-pixel count stable at ~750-800 frame
+to frame -- i.e. the shadow-table erase leaves no trails.  `make
+microbench` is unchanged and still green (the headless proof is untouched
+by the demo).  `run_demo.sh gpuparticles` watches it; `build.sh` gained
+the 68K source (its `*_gpu.s` payload is picked up by the generic lyxass
+pass automatically).

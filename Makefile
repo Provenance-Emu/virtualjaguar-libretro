@@ -3654,6 +3654,8 @@ demos:
 		test/tools/test_demo_audio test/tools/test_demo_alu
 	./test/tools/test_demo_particles ./$(TARGET) \
 		test/microbench/benchdemo_particles.j64
+	./test/tools/test_demo_particles ./$(TARGET) \
+		test/microbench/benchdemo_gpuparticles.j64
 	./test/tools/test_demo_audio ./$(TARGET) \
 		test/microbench/benchdemo_audio.j64
 	./test/tools/test_demo_audio ./$(TARGET) \

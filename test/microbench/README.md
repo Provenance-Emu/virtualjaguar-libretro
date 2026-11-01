@@ -569,21 +569,23 @@ each one's expected stall profile.
 
 The five benchmark ROMs above are headless by design: they measure ticks,
 and every cycle they spend on video is a cycle that muddies the
-measurement.  Two extra ROMs here are the opposite — they exist to be
+measurement.  These extra ROMs are the opposite — they exist to be
 **looked at**, and they are the proof that the whole video path works in
 this core:
 
 | ROM | what it shows |
 |---|---|
 | `benchdemo_vidprobe.j64` | a full-screen gradient — the smallest ROM that proves the Object Processor path |
-| `benchdemo_particles.j64` | 64 particles exploding from the screen centre, each a different hue, on a 320×240 screen |
+| `benchdemo_particles.j64` | 64 particles exploding from the screen centre, each a different hue, on a 320×240 screen — drawn entirely by the 68000, the reference picture |
+| `benchdemo_gpuparticles.j64` | the same explosion with 256 particles, integrated and drawn by the **GPU RISC** with the 2-deep schedule — the watchable counterpart of the particle-transform proof above |
 | `benchdemo_audio.j64` | a 68K-only I2S square wave (~2.75 kHz, stereo) — the audio path end to end |
 | `benchdemo_sine.j64` | the same I2S path driven from a 64-step sine table (~649 Hz) — the waveform the 32X PWM test measures, so the two machines' audio paths can be compared |
 
 Watch them in RetroArch, or listen to the audio one without an emulator:
 
 ```bash
-test/microbench/run_demo.sh              # the particle explosion
+test/microbench/run_demo.sh              # the particle explosion (68K)
+test/microbench/run_demo.sh gpuparticles # the same, drawn by the GPU
 test/microbench/run_demo.sh vidprobe     # the gradient probe
 test/microbench/run_demo.sh audio        # the square wave, in RetroArch
 test/microbench/run_demo.sh audio --wav  # ...or straight to a .wav file
@@ -615,6 +617,55 @@ it is not the odd 9 KB file size).  The core boots them through its HLE
 path.  These carts fill $800000-$8003FF (the encrypted BootIntro block
 on a retail cart) with zeros, which is the usual suspect; it is not yet
 proven.
+
+### The GPU-drawn explosion, and the three bugs it found
+
+`benchdemo_gpuparticles.j64` is the same picture as
+`benchdemo_particles.j64`, but the burst is simulated *and* drawn by the
+GPU RISC, using the 2-deep schedule the headless particle pair proves
+(loads for particle k+1 issued before the work for particle k; the
+harvest at the bottom of the loop is the only place the external DRAM
+latency can be exposed).  The split is deliberate:
+
+* the **68000** keeps the field timing and the Object Processor re-arm —
+  that code is delicate and already proven, so it is reused verbatim;
+* the **GPU** owns the pixels: erase the back buffer through its shadow
+  table, integrate and bounce 256 particles, plot them, rewrite the
+  shadow.
+
+One command block in main RAM (`$00113000`: GO, FRAME, DONE, BACK,
+SHADOW, and a GPU-side frame counter for diagnostics) carries the
+handshake.  Two things there are worth copying into any GPU/68K ROM:
+
+1. **GO is a magic word (`$5A5A0001`), not "non-zero".**  A particle
+   that leaves the screen makes the erase pass address memory outside
+   its framebuffer; the erase writes the background longword
+   (`$00010001`), and a plain non-zero test then fires a frame the 68K
+   never asked for.  That is not hypothetical: it happened here, and the
+   GPU free-ran, integrating the burst dozens of times per field.  A
+   magic word cannot be forged by a background write.
+2. **Reset the command-block cursor at the top of the idle loop.**  The
+   frame body walks a cursor (`r8`) through the block, so after a frame
+   it points at DONE, not GO.  The first version walked back into `idle`
+   with `r8` still at DONE, tested DONE as if it were GO, and free-ran
+   for the same reason.
+
+Both of those showed up as the same symptom — a burst that had moved far
+more than the frame counter said — and the GPU-side frame counter is what
+told them apart from a slow emulator.
+
+A 2x2 block is two 32-bit stores, not four 16-bit ones: the pixels are 16
+bits, so one longword holds a whole row of the block.  That requires an
+even x, which the seed guarantees by masking the velocities with
+`$FFFFFFFE` — and *that* mask is the third bug: `$FFFE` is a 16-bit
+mask, so it clears the top half of every velocity and turns -16 into
++65520.  All 256 particles then leave the screen on the first frame, the
+erase walks out of the framebuffer, and the picture is empty.  If you
+write this kind of mask in a 68K ROM, write it out in full.
+
+Measured (`make demos`): 256 particles, all on screen, every frame lit
+after warm-up, 64 distinct hues, and the erase leaves no trails (the lit
+pixel count is stable frame to frame at ~750-800).
 
 ### The sine, and how it is measured
 

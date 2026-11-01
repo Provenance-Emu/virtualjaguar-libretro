@@ -8,6 +8,10 @@
 #   particles   the particle explosion: 64 particles, each with its own
 #               hue, bouncing around a 320x240 framebuffer that the
 #               Object Processor scans out every field
+#   gpuparticles  the same explosion with 256 particles, integrated and
+#               drawn by the GPU RISC with the 2-deep schedule from the
+#               headless pair (the 68K keeps the field timing and the
+#               OP re-arm); the watchable counterpart of that proof
 #   vidprobe    a full-screen gradient, the smallest possible proof that
 #               the Object Processor path works
 #   audio       the 68K-only I2S square wave (about 2.75 kHz, stereo);
@@ -18,6 +22,7 @@
 #
 # Usage:
 #   test/microbench/run_demo.sh                  # particles, in RetroArch
+#   test/microbench/run_demo.sh gpuparticles     # the GPU version
 #   test/microbench/run_demo.sh vidprobe         # the gradient probe
 #   test/microbench/run_demo.sh audio            # listen in RetroArch
 #   test/microbench/run_demo.sh audio --wav      # render a WAV and play it
@@ -47,12 +52,12 @@ mode=retroarch
 wav_path=""
 extra_args=()
 
-usage() { sed -n '2,36p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,44p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
-        particles|vidprobe|audio|sine) which_demo="$1"; shift ;;
+        particles|gpuparticles|vidprobe|audio|sine) which_demo="$1"; shift ;;
         bigpemu) mode=bigpemu; shift ;;
         --wav)
             mode=wav
@@ -69,6 +74,7 @@ case "$which_demo" in
     vidprobe) rom="$here/benchdemo_vidprobe.j64" ;;
     audio)    rom="$here/benchdemo_audio.j64" ;;
     sine)     rom="$here/benchdemo_sine.j64" ;;
+    gpuparticles) rom="$here/benchdemo_gpuparticles.j64" ;;
     *)        rom="$here/benchdemo_particles.j64" ;;
 esac
 
