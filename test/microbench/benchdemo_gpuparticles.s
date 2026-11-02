@@ -31,9 +31,10 @@
 ; 64 was the 68K's budget, not a taste: 16bpp DRAM writes are expensive
 ; for the 68000 and 320 of them is about 6 ms of a 16.6 ms field.  The
 ; GPU issues two longword stores per particle instead of four word
-; stores (a longword is exactly the two pixels of a 2x2 block's row, and
-; x is kept even), and it does not have to fetch the instruction stream
-; through the same bottleneck, so 256 particles fit comfortably.
+; stores (a longword is exactly the two pixels of a 2x2 block's row, so
+; the x it draws at is rounded down to even), and it does not have to
+; fetch the instruction stream through the same bottleneck, so 256
+; particles fit comfortably.
 
         .68000
         .text
@@ -158,12 +159,24 @@ start:
 
 ; ---- 4. seed the particles -----------------------------------------
 ; Every particle starts at the centre with a pseudo-random direction
-; (a Weyl sequence, so the burst is identical on every run).
+; (a Weyl sequence, so the burst is identical on every run), and its
+; own SPEED.
 ;
-; The velocities are forced EVEN: the GPU writes a 2x2 block as two
-; longword stores, which only works when x is even, and an even
-; velocity with an even start -- and a reflection, which only changes
-; the sign -- keeps it even for ever.  No masking in the hot loop.
+; Speed matters as much as direction, and so does AGE.  With one speed for every
+; particle the burst is a lattice: x = 160 + n*vx, and vx drawn from
+; [-16..15] is only 32 columns, so the picture reads as an expanding
+; grid rather than an explosion.  Scaling each particle's velocity by
+; its own factor -- the same factor on both axes, so the direction is
+; kept and only the magnitude changes -- decorrelates them and gives
+; the burst depth: the fast ones reach the edges while the slow ones
+; are still near the centre.  A random age (the burst starts as a disc)
+; then takes the last of the grid out of the picture.
+;
+; The parity the GPU needs (one longword store paints a 2x2 block's
+; row, which only works at an even x) is a DRAWING detail, so it lives
+; in the GPU payload -- quantising the position once per particle per
+; frame -- not here.  Masking the velocities instead would halve the
+; number of directions and make the lattice worse.
         move.l  #$0000C0DE,d0
         move.l  #PARTICLE_BASE,a1
         move.l  #PARTICLE_BASE+4,a2
@@ -171,26 +184,77 @@ start:
         move.l  #PARTICLE_BASE+12,a4
         move.w  #(PARTICLE_COUNT-1),d1
 seedloop:
-        move.l  #CENTER_X,a5
-        move.l  a5,(a1)
-        move.l  #CENTER_Y,a5
-        move.l  a5,(a2)
+        ; the per-particle speed factor: 128..383 in 1/512 units, i.e.
+        ; x0.25 .. x0.75 of the base velocity, from eight bits the two
+        ; direction fields do not use.  Eight bits, not four: 256
+        ; particles over 64 buckets leaves four particles on an identical
+        ; (direction, speed) pair, and those four then travel in lockstep
+        ; for ever, which is visible as repeating clusters.  One factor
+        ; for both axes keeps the direction.
+        move.l  d0,d5
+        lsr.l   #8,d5
+        andi.l  #$FF,d5
+        addi.l  #$80,d5
 
         move.l  d0,d2
         moveq   #VEL_SHIFT_X,d4
         lsr.l   d4,d2
         andi.l  #VEL_MASK,d2
         sub.l   #VEL_BIAS,d2
-        andi.l  #$FFFFFFFE,d2
-        move.l  d2,(a3)
+        muls.w  d5,d2                   ; the 68K shift count is 1..8,
+        asr.l   #8,d2                   ; so /512 needs two of them
+        asr.l   #1,d2                   ; d2 = vx
 
-        move.l  d0,d2
+        move.l  d0,d3
         moveq   #VEL_SHIFT_Y,d4
-        lsr.l   d4,d2
-        andi.l  #VEL_MASK,d2
-        sub.l   #VEL_BIAS,d2
-        andi.l  #$FFFFFFFE,d2
-        move.l  d2,(a4)
+        lsr.l   d4,d3
+        andi.l  #VEL_MASK,d3
+        sub.l   #VEL_BIAS,d3
+        muls.w  d5,d3
+        asr.l   #8,d3
+        asr.l   #1,d3                   ; d3 = vy
+
+        ; Each particle starts at a random AGE: pre-integrated 0..7
+        ; steps.  Age is what finally kills the grid.  Particles that all
+        ; start at one point with integer velocities and the same frame
+        ; count sit on the lattice x = 160 + n*vx, which reads as an
+        ; expanding grid even when their speeds differ; pre-integrating a
+        ; different number of steps for each one scatters that lattice and
+        ; makes the burst start as a filled disc, the way a real explosion
+        ; looks in mid-flight.
+        ;
+        ; 7 steps is deliberately small: with |v| <= 11 px/field and a
+        ; +-8 px start offset the worst case is 160+-85, 120+-85, which
+        ; is inside the bounce box, so no particle starts off screen.
+        move.l  d0,d6
+        swap    d6                      ; bits 16-18 of the Weyl word
+        andi.l  #$07,d6                 ; d6 = age, 0..7
+
+        ; x0 = CENTER_X + offset(-8..7) + age*vx
+        move.l  #CENTER_X,d7
+        move.l  d0,d4
+        lsr.l   #4,d4
+        andi.l  #$0F,d4
+        subi.l  #8,d4
+        add.l   d4,d7
+        move.l  d2,d4
+        muls.w  d6,d4
+        add.l   d4,d7
+        move.l  d7,(a1)
+
+        ; y0 = CENTER_Y + offset(-8..7) + age*vy
+        move.l  #CENTER_Y,d7
+        move.l  d0,d4
+        andi.l  #$0F,d4
+        subi.l  #8,d4
+        add.l   d4,d7
+        move.l  d3,d4
+        muls.w  d6,d4
+        add.l   d4,d7
+        move.l  d7,(a2)
+
+        move.l  d2,(a3)
+        move.l  d3,(a4)
 
         addi.l  #WELLY_STEP,d0
         add.l   #PARTICLE_STRIDE,a1

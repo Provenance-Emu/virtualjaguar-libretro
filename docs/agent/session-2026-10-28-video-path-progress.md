@@ -749,9 +749,11 @@ A 2x2 block is **two 32-bit stores** rather than four 16-bit ones: two
 pixels fit one longword, so `colour<<16 | colour` paints a whole row of
 the block in one store.  That needs an even x, which the seed guarantees
 (velocities masked, reflections preserve parity) -- no masking in the
-hot loop.  The 68K demo's 64-particle budget was a 68000 limit (320
-16-bit DRAM writes ≈ 6 ms of a 16.6 ms field); with longword stores the
-GPU handles 256 particles comfortably.
+hot loop (in the final version the rounding happens once per particle per
+frame, at the draw, so odd velocities are still allowed -- see 12.4).
+The 68K demo's 64-particle budget was a 68000 limit (320 16-bit DRAM
+writes ≈ 6 ms of a 16.6 ms field); with longword stores the GPU handles
+256 particles comfortably.
 
 ### 12.2 Three bugs, in the order they appeared
 
@@ -777,7 +779,34 @@ A GPU-side frame counter in the command block (`CMD+20`) is what separated
 (2) from "the emulator is just slow": 68K frames and GPU frames could be
 compared directly.
 
-### 12.3 Measured
+### 12.3 The picture was an expanding grid, and why
+
+With the physics correct the demo looked *mechanical*: dots on a regular
+grid, the same spacing in rows and columns.  It is arithmetic, not a
+rendering bug.  Every particle starts at one point with an integer
+velocity and advances one step per field, so `x = 160 + n*vx` with the
+same `n` for all of them: 256 particles, 32 possible `vx` values, 32
+columns.  Masking the velocities to even (the 2x2 longword store) made it
+worse -- 16 columns.
+
+Three changes, all in the seeder, all integer arithmetic:
+
+* **round at draw time, not in the physics** -- one `AND $FFFFFFFE` per
+  particle in the GPU payload produces the x that is plotted and erased;
+  the stored state keeps the true position.  Odd velocities are back.
+* **a per-particle speed** -- eight bits of the Weyl word scale the
+  velocity by 0.25..0.75 (same factor on both axes, so the direction is
+  kept).  The burst gains depth instead of being one shell.
+* **a per-particle age** -- pre-integrate 0..7 steps, so the burst starts
+  as a filled disc rather than a shell of equal-age particles.  Seven
+  steps with |v| <= 11 and a +-8 px start offset keeps the worst case at
+  160+-85 / 120+-85, inside the bounce box, so nothing starts off screen.
+
+The result reads as an explosion (checked frame by frame through
+`--frames-out`); 256 particles over 32 directions and 256 speeds leaves
+almost no two particles travelling in lockstep.
+
+### 12.4 Measured
 
 `make demos` (90 frames): 256 particles, all on screen, every frame lit
 after warm-up, 64 distinct hues, lit-pixel count stable at ~750-800 frame

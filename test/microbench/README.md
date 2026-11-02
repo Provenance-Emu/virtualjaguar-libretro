@@ -655,13 +655,28 @@ more than the frame counter said — and the GPU-side frame counter is what
 told them apart from a slow emulator.
 
 A 2x2 block is two 32-bit stores, not four 16-bit ones: the pixels are 16
-bits, so one longword holds a whole row of the block.  That requires an
-even x, which the seed guarantees by masking the velocities with
-`$FFFFFFFE` — and *that* mask is the third bug: `$FFFE` is a 16-bit
-mask, so it clears the top half of every velocity and turns -16 into
-+65520.  All 256 particles then leave the screen on the first frame, the
-erase walks out of the framebuffer, and the picture is empty.  If you
-write this kind of mask in a 68K ROM, write it out in full.
+bits, so one longword holds a whole row of the block.  That needs an even
+x, and *where* the rounding goes is a design decision:
+
+* the first version masked the seeded **velocities** with `$FFFFFFFE`.
+  That is the third bug — `$FFFE` is a 16-bit mask, so it cleared the top
+  half of every velocity and turned -16 into +65520.  All 256 particles
+  left the screen on the first field and the picture was empty.  (If you
+  write this kind of mask in a 68K ROM, write it out in full.)
+* the version that stayed rounds **at draw time** instead: one `AND` per
+  particle produces the x that is plotted and erased, while the stored
+  state keeps the true position.  Rounding the velocities would halve the
+  number of directions, and the burst would collapse into a lattice.
+
+The lattice is worth calling out, because it was the demo's other visible
+flaw.  Particles that all start at one point, advance in whole pixels and
+share a frame count sit on `x = 160 + n*vx` — a grid of 32 columns that
+reads as an expanding checkerboard, not an explosion.  Two cheap fixes in
+the seeder: give each particle its own **speed** (eight bits of the Weyl
+word, so the fast ones reach the edges while the slow ones are still near
+the centre) and its own **age** (pre-integrate 0–7 steps, so the burst
+starts as a filled disc).  Both keep the physics integer — no fixed-point
+needed — and the grid is gone.
 
 Measured (`make demos`): 256 particles, all on screen, every frame lit
 after warm-up, 64 distinct hues, and the erase leaves no trails (the lit

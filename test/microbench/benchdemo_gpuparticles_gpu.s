@@ -55,9 +55,11 @@
 ; integrate and draw all 256 particles, then rewrite the shadow table.
 ;
 ; A 2x2 block is TWO 32-bit stores, not four 16-bit ones: the pixels are
-; 16 bits, so a longword holds two of them, and x is kept even (the
-; velocities are even by construction, and a reflection cannot change
-; parity).  That halves the DRAM traffic, which is the real budget here.
+; 16 bits, so a longword holds two of them.  That needs an even x, which
+; is applied here (one AND per particle) rather than in the physics --
+; rounding the velocities would halve the number of directions and the
+; burst would collapse into a lattice.  It halves the DRAM traffic,
+; which is the real budget here.
 ;
 ; Assembled by test/microbench/build.sh's generic *_gpu.s pass; the .org
 ; is baked in because the RISC has no relocatable code.
@@ -89,6 +91,7 @@ start:
         movei   #BG_LONG,r18
         movei   #GO_MAGIC,r19
         movei   #DONE_MAGIC,r3
+        movei   #$FFFFFFFE,r9           ; the even-x mask for the draw
 
 ; ---- the field handshake --------------------------------------------
 ; GO must be EXACTLY the magic word, not merely non-zero.  A particle
@@ -219,6 +222,15 @@ y_in:
         store   r5,(r14+4)
         store   r6,(r14+8)
         store   r7,(r14+12)
+
+        ; --- quantise x for the DRAW only: one longword store paints a
+        ;     2x2 block's row, which needs an even x.  This is the only
+        ;     place to absorb it -- rounding the VELOCITIES instead would
+        ;     halve the number of directions and turn the burst into a
+        ;     lattice of even columns.  The state above keeps the true
+        ;     position, so motion stays pixel-accurate; the shadow table
+        ;     and the erase pass both see the rounded x.
+        and     r9,r4
 
         ; --- remember where this buffer now holds the particle
         move    r5,r1
