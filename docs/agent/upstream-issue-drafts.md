@@ -287,109 +287,6 @@ linker faithfully links what it is given.
 
 ---
 
-## Issue 3 — the OP reads every bitmap object one byte per line off, because DWIDTH is decoded together with PITCH
-
-**Upstream:** https://github.com/libretro/virtualjaguar
-**Suggested title:** `OP bitmap objects are sheared by one byte per line: the DWIDTH field is decoded with the PITCH bits included`
-
-### Summary
-
-The Object Processor's second phrase carries two adjacent fields:
-
-```
-| 15-17 | PITCH  | Data phrase spacing: distance in phrases between successive pixels |
-| 18-27 | DWIDTH | Data width: number of phrases per scanline of image data |
-```
-
-(JTRM Rev 8 p.20, "Scaled Bit Mapped Object"/"Bit Mapped Object" table;
-the same layout is in `docs/jtrm-object-processor.md`.) The DATA pointer
-advances by **DWIDTH phrases** per scanline, i.e. by `DWIDTH * 8` bytes.
-
-`src/tom/op.c` decodes the line stride with
-
-```c
-dwidth = (p1 & 0xFFC0000) >> 15;
-```
-
-`0xFFC0000` starts three bits lower than the DWIDTH field, so the
-**PITCH bits (15-17) are decoded as part of the line stride**. For a
-bitmap with the usual `PITCH = 1` the stride is therefore one byte too
-long, and every line of every 16bpp bitmap object is read one byte
-further along than it should be: the picture shears by one byte per
-line (a 320-pixel-wide screen ends up 240 bytes — 120 pixels — out of
-alignment by the bottom of the screen).
-
-The correct decode is
-
-```c
-dwidth = (p1 & 0x3FC0000) >> 15;   /* DWIDTH (bits 18-27) in bytes */
-```
-
-which is the DWIDTH field alone, shifted so that it is already in bytes
-(`DWIDTH * 8`).
-
-### Measured
-
-The defect is visible in the demo ROMs in `test/microbench/`, which
-program a full-screen 16bpp bitmap object (320x240, 80 phrases per
-line, `PITCH = 1`, `DWIDTH = 80`):
-
-* with the old decode the line stride is `80*8 + 1 = 641` bytes instead
-  of 640, and the rendered image shears: the top of the screen is
-  correct and the bottom third is a set of diagonal streaks (the OP has
-  walked off the end of the framebuffer and is reading unrelated RAM);
-* with the corrected decode the stride is exactly 640 and the picture
-  is stable.
-
-The same shear is measurable in a real game: `test/roms/yarc.j64` shows
-the same one-byte-per-line skew.
-
-### Reproduction
-
-```bash
-# 1. the decode itself (src/tom/op.c, two places: the BITOBJ and the
-#    SCBITOBJ paths)
-grep -n "0xFFC0000" src/tom/op.c
-
-# 2. the visible effect: build the gradient demo and dump a frame
-cd test/microbench
-T=../../tools/vendor/jaguar-toolchain
-$T/rmac/rmac -fb -o /tmp/vp.o benchdemo_vidprobe.s
-$T/rln/rln -n -a 800000 x x -o /tmp/vp.j64 /tmp/vp.o
-cc -O2 -Wall -std=c99 -o /tmp/dump ../../test/tools/test_demo_particles.c \
-   ../../test/harness/harness.c ../../test/harness/trace_probe.c -ldl -lm
-/tmp/dump ../../virtualjaguar_libretro.so /tmp/vp.j64 --frames 60 \
-   --frames-out /tmp/frames
-```
-
-The dump shows a gradient whose lower third is diagonal streaks instead
-of a smooth vertical ramp.
-
-### Impact
-
-Every 16bpp (and 8bpp-palettized) bitmap object in every game is read
-with a line stride one byte too long. The picture shears progressively
-down the screen: on a 320-pixel-wide display the bottom of the screen is
-120 pixels out of register, and the last lines of a full-screen object
-are read from beyond the end of the bitmap. It is subtle enough that
-it can be mistaken for interlace wobble, and it is invisible in the
-committed screenshot baselines only because those titles do not use a
-full-screen 16bpp bitmap.
-
-### Suggested fix
-
-```c
-dwidth = (p1 & 0x3FC0000) >> 15;   /* DWIDTH (bits 18-27), in bytes */
-```
-
-in both places in `src/tom/op.c` that decode it (the BITOBJ write-back
-and the SCBITOBJ write-back). The rendering-neutral case is worth
-checking in the regression baselines: the committed `yarc` screenshot is
-byte-identical before and after, because that title's objects use a
-different pitch.
-
----
-
 ## Claims that did not reproduce
 
 Kept here so they are not filed again, with the reason each was wrong.
@@ -421,3 +318,14 @@ Kept here so they are not filed again, with the reason each was wrong.
   displacement (`4(a0)`) assembles correctly (`32 28 00 04`). What is
   broken is a **label** in an indexed form (Issue 2 above), because the
   label becomes a section-relative displacement.
+* **"The OP decodes DWIDTH together with PITCH, so every bitmap is
+  sheared by a byte per line."** — Withdrawn before filing. `0xFFC0000`
+  is `0x3FF << 18`, i.e. bits 18-27, which is the whole ten-bit DWIDTH
+  field (JTRM Rev 8 p.20); it does not reach down to PITCH (bits
+  15-17), and `>>15` is exactly the `*8` that turns phrases into bytes.
+  The decode was correct. A control settled it: with either mask the
+  demo's 80-phrase line gives 640 bytes, so the demo frames and both
+  committed regression ROMs are pixel-identical under the "old" and the
+  "fixed" build (0 differing pixels of 78240, 78566 and 104594). The
+  commit that changed the mask to `0x3FC0000` truncated DWIDTH to eight
+  bits and was dropped.

@@ -483,23 +483,46 @@ JTRM-derived notes in `docs/jtrm-jerry.md`; the core's byte handlers
 have them the other way round) — recorded here as an open question, not
 filed, because the manual itself is not in this checkout.
 
-### 9.3 The core's OP decodes DWIDTH together with PITCH — every bitmap is sheared by a byte per line
+### 9.3 The DWIDTH "bug" was not a bug — withdrawn after a control
 
-`src/tom/op.c` decoded the OP's line stride as
+The OP's second phrase carries two adjacent fields:
+
+| bits | field | meaning |
+|---|---|---|
+| 15-17 | PITCH | data phrase spacing, in phrases |
+| 18-27 | DWIDTH | data width, in phrases per scanline |
+
+and the DATA pointer advances DWIDTH phrases (= DWIDTH*8 bytes) per
+scanline.  This session was convinced that `src/tom/op.c` decoded the
+stride with a mask that also picked up PITCH:
 
 ```c
-dwidth = (p1 & 0xFFC0000) >> 15;
+dwidth = (p1 & 0xFFC0000) >> 15;   /* what the code said */
 ```
 
-`0xFFC0000` starts three bits below the DWIDTH field, so the **PITCH
-bits (15-17) became part of the stride**: a 16bpp bitmap with
-`PITCH = 1` was read one byte further along on every line, and the
-picture sheared 120 pixels by the bottom of a 320-pixel screen.  The
-fix is `0x3FC0000` (the DWIDTH field alone).
+The reasoning was that `0xFFC0000` "starts three bits lower than the
+field".  It does not: `0xFFC0000` is `0x3FF << 18`, i.e. bits 18-27
+exactly — the whole ten-bit DWIDTH field, and the shift to bytes
+(`<<3`) is the `>>15`.  The decode was correct.  The mask that would
+start at bit 15 is `0x3FF << 15` (`0x7FC0000`), which is not what the
+code had.
 
-This is what made the demo ROMs look like garbage.  With it fixed, the
-gradient demo renders a clean full-screen gradient and the particle demo
-renders a moving burst.
+So the change that was committed here (`0x3FC0000`, bits 18-25) was a
+**regression**: it truncates DWIDTH to eight bits, which is wrong for
+any scanline of 256 phrases or more (2048 bytes).  It has been dropped.
+
+The control that settles it: both masks give 640 bytes for the demo's
+80-phrase line, so neither the particle demo nor the vidprobe gradient
+can tell them apart — and neither can the two committed regression
+ROMs.  Dumped at frame 500, `yarc.j64` and `jagniccc.j64` are
+pixel-identical under a plain `develop` build, under the "fixed" build
+and under the "buggy" build (0 differing pixels out of 78566 and
+104594); so are the demo frames (0 of 78240).
+
+What actually made the demo ROMs look like garbage is the list in 9.4 —
+the ROM-side bugs, above all the demo encoding the DWIDTH field as 64
+phrases instead of 80.  The core's OP rendering was right the whole
+time (see also 10.1).
 
 ### 9.4 The demo ROMs had bugs of their own — the list, so nobody re-derives it
 
@@ -541,8 +564,10 @@ reproduced against a **pristine** build of the pinned toolchain:
 
 1. the cart HLE boot never initialises the 68000's user stack pointer;
 2. rmac mis-assembles a label in an indexed form, loses the index scale
-   of `d(An,Am)`, and encodes `cmp #imm` as an immediate-EA CMP;
-3. the OP's DWIDTH/PITCH decode (this session's core bug).
+   of `d(An,Am)`, and encodes `cmp #imm` as an immediate-EA CMP.
+
+Issue 3 of that draft — "the OP decodes DWIDTH together with PITCH" —
+was **withdrawn**: the mask was already the DWIDTH field (9.3).
 
 The file also keeps a **"Claims that did not reproduce"** section, with
 the reason each was wrong, so the false ones are not filed again.
