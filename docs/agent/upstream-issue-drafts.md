@@ -12,8 +12,15 @@ Two upstreams are involved:
 | 1 | `libretro/virtualjaguar-libretro` | this repo's `src/` | a core behaviour gap |
 | 2 | `mwenge/rmac` | the Jaguar assembler | a toolchain defect |
 
-None of them has been filed yet — the drafts are here so they can be
-reviewed and filed in one sitting.
+Both surviving drafts have been filed:
+
+| draft | filed as |
+|---|---|
+| cart HLE user stack pointer | https://github.com/libretro/virtualjaguar-libretro/issues/1165 (as a question: the behaviour is measured, the BIOS fidelity is not) |
+| `cmp #imm,Dn` -> illegal CMP | https://github.com/mwenge/rmac/issues/2 |
+
+Issue 3 of an earlier revision (the OP DWIDTH/PITCH claim) was withdrawn
+before filing — see "Claims that did not reproduce".
 
 **Every reproduction below was re-run against a pristine build** of the
 pinned toolchain (`tools/jaguar-toolchain/PIN`: rmac `50e66ea`, rln
