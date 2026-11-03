@@ -9,9 +9,8 @@ Two upstreams are involved:
 
 | # | upstream | repo | what it is |
 |---|----------|------|------------|
-| 1 | `libretro/virtualjaguar` | this repo's `src/` | a core behaviour gap |
+| 1 | `libretro/virtualjaguar-libretro` | this repo's `src/` | a core behaviour gap |
 | 2 | `mwenge/rmac` | the Jaguar assembler | a toolchain defect |
-| 3 | `libretro/virtualjaguar` | this repo's `src/tom/op.c` | an OP object decoding bug |
 
 None of them has been filed yet — the drafts are here so they can be
 reviewed and filed in one sitting.
@@ -27,7 +26,7 @@ one was wrong, so nobody files them again.
 
 ## Issue 1 — the cart HLE boot path never initialises the 68000's user stack pointer
 
-**Upstream:** https://github.com/libretro/virtualjaguar
+**Upstream:** https://github.com/libretro/virtualjaguar-libretro
 **Suggested title:** `cart HLE boot leaves the 68000's user stack pointer at 0 — the standard drop-to-user-mode idiom then faults the CPU`
 
 ### Summary
@@ -60,9 +59,6 @@ read from main RAM `$010000`+ by `test/tools/probe_demo_sentinels.c`):
 | `$010020` | `FFFFFFFF` | `(sp)` in user mode — the push landed at `$FFFFFFFC`, unmapped |
 | `$010004` | `00000000` | the DONE sentinel was never written — the ROM died |
 
-Final CPU state after the run: `PC = 0x00000000`, `A7 = 0x00000000`,
-`SR = 0x0000`.
-
 ### Reproduction
 
 ```bash
@@ -72,16 +68,18 @@ T=../../tools/vendor/jaguar-toolchain
 $T/rmac/rmac -fb -o /tmp/sp.o benchdemo_stackprobe.s
 $T/rln/rln -n -a 800000 x x -o benchdemo_stackprobe.j64 /tmp/sp.o
 
-# run it and read the sentinel block
+# build and run the sentinel dumper (from the repository root)
+cd ../..
 cc -O2 -Wall -std=c99 -o /tmp/probe_sents \
-   ../../test/tools/probe_demo_sentinels.c ../../test/harness/harness.c -ldl -lm
-LD_LIBRARY_PATH=.. /tmp/probe_sents ../../virtualjaguar_libretro.so \
-   benchdemo_stackprobe.j64 --frames 20
+   test/tools/probe_demo_sentinels.c test/harness/harness.c -ldl -lm
+/tmp/probe_sents ./virtualjaguar_libretro.so \
+   test/microbench/benchdemo_stackprobe.j64 --frames 20
 ```
 
-The same ROM boots and runs to completion if it sets A7 itself before
-dropping to user mode — that is the workaround, and it is what every ROM
-in `test/microbench/` has to do.
+`test/microbench/benchdemo_stacktest.j64` is the same program with one
+line added — `move.l #$00003FF0,a7` right after the transition — and it
+reaches its DONE sentinel (`$C0DE0068`) instead of dying. That is the
+workaround, and it is what every ROM in `test/microbench/` has to do.
 
 ### Where it comes from
 
@@ -164,126 +162,62 @@ you can debug from the outside.
 
 ---
 
-## Issue 2 — rmac silently mis-assembles the two indexed addressing forms, and encodes `cmp #imm` as an immediate-EA CMP
+## Issue 2 — `cmp.w #imm,Dn` is encoded as a CMP with an immediate effective address, which is an illegal instruction
 
 **Upstream:** https://github.com/mwenge/rmac (pinned at `50e66ea`; see
 `tools/jaguar-toolchain/PIN`)
-**Suggested title:** `silent mis-assembly of indexed addressing modes; "cmp #imm,Dn" is encoded as a CMP with an immediate effective address`
+**Suggested title:** `cmp.w #imm,Dn` assembles to a CMP with an immediate EA (an illegal instruction) instead of CMPI
 
 ### Summary
 
-Three defects, all reproduced with the pinned `rmac`/`rln` (built from a
-pristine checkout — `make clean` first, because the vendored build
-directory can hold stale objects):
+`cmp.w #5,d0` assembles to
 
-1. `move.w TBL(a0),d1` — the absolute-indexed form — is **silently
-   mis-assembled**. rmac encodes the label as a *section-relative
-   displacement* inside a brief extension, so the effective address is
-   the label's offset from the section base rather than its address.
-2. `move.w 0(a1,a0),d2` — the register+register index form — is
-   **silently mis-assembled**: the index scale is always "byte", so the
-   effective address is wrong for a word (and for a long) access.
-3. `cmp.w #5,d0` is encoded as `B0 7C 00 05` — a CMP with an
-   *immediate* effective address. The 68000 has no such addressing mode
-   (compare-with-immediate is the separate `CMPI` instruction), so the
-   program traps with an illegal-instruction exception instead of
-   comparing.
+```
+B0 7C 00 05
+```
 
-Defects 1 and 2 are the dangerous ones: the assembler reports no error
-and the linker produces a well-formed object, so the mis-assembly only
-shows up as wrong behaviour at run time.
+`B0 7C` is `CMP.W` with **mode 7 / register 4 (immediate)** in the source
+effective-address field. `CMP <ea>,Dn` has no immediate form on the
+68000 — that is what the separate `CMPI` instruction is for — so the
+encoding is not a legal instruction. The intended bytes are
+
+```
+CMPI.W #5,D0   =   0C 40 00 05
+```
+
+which is what other 68000 assemblers emit for this source form.
+
+This matters because it is *silent*: `rmac` reports no diagnostic and
+`rln` links the object. Emulators whose EA decoder is generic enough will
+happily execute `B0 7C` (this repo's core does, which is how the encoding
+was noticed — the result looked right and the bytes were wrong), so the
+mistake can survive until the code meets a 68000, where it takes the
+illegal-instruction exception (vector 4) instead of comparing.
 
 ### Reproduction
 
-The cleanest evidence is the byte pattern, which is exact and needs no
-emulator. Assemble each form on its own and look at the object file:
+The evidence is the byte pattern; no emulator is needed.
 
 ```bash
 T=tools/vendor/jaguar-toolchain
-cat > /tmp/forms.s <<'EOF'
-        .68000
-        .text
-start:
-        move.w  TBL(a0),d1
-        move.w  0(a1,a0),d2
-        cmp.w   #5,d0
-TBL:    dc.w    $1111,$2222,$3333
-EOF
-$T/rmac/rmac -fb -l*lst.txt -o /tmp/forms.o /tmp/forms.s
-xxd -s 0x20 -l 24 /tmp/forms.o
+printf '        .68000\n        .text\nstart:\n        cmp.w   #5,d0\n' > /tmp/cmp.s
+$T/rmac/rmac -fb -o /tmp/cmp.o /tmp/cmp.s
+xxd -s 0x20 -l 4 /tmp/cmp.o      # b07c 0005
 ```
 
-```
-00000020: 3228 0004 3431 8000 b07c 0005 1111 2222 3333
-```
-
-| source | rmac's bytes | what it should be |
+| source | rmac | correct |
 |---|---|---|
-| `move.w TBL(a0),d1` | `32 28 00 04` | `MOVE.W (d16,A0),D1` with the **absolute** address of `TBL` — the 68000 has no absolute-indexed MOVE, so this needs `move.l #TBL,a0` + `move.w (a0),d1` |
-| `move.w 0(a1,a0),d2` | `34 31 80 00` | `MOVE.W (d8,A1,XA0),D2` with the index scale = **01** (word); rmac emits `80` → scale `00` (byte) |
-| `cmp.w #5,d0` | `B0 7C 00 05` | `CMPI.W #5,D0` = `0C 40 00 05` |
-
-The scale bug is visible in the extension word: for a word access the
-scale field (bits 3-2 of the extension word) must be `01`, and rmac
-always emits `00`. The same holds for a long access (which needs `10`),
-so `move.l 0(a1,a0),d2` (`24 31 80 00`) is wrong as well.
-
-### Runtime evidence
-
-`test/microbench/benchdemo_indextest.s` reads a table through both forms
-and publishes the results in the sentinel block. The table is
-
-```
-TBL:    dc.w    $1111,$2222,$3333,$4444
-```
-
-and the index used is **2**, so a dropped or mis-scaled index register
-is visible (TBL[2] = $3333, TBL[0] = $1111, TBL[1] = $2222):
-
-| instruction | rmac's bytes | result at run time | correct result |
-|---|---|---|---|
-| `move.w TBL(a0),d1` | `32 28 20 00` | `0` (d1 never written) | `$3333` |
-| `move.w 0(a1,a0),d2` | `34 31 80 00` | `$2222` | `$3333` |
-| `move.w (a1),d1` (control) | `32 11` | `$1111` | `$1111` ✓ |
-
-The plain `(An)` form is encoded correctly, so the assembler is not
-simply broken for An-indirect addressing — it is the **index** that is
-lost.
-
-Reading the two failures:
-
-* `move.w TBL(a0),d1` became `MOVE.W (d16,A0),D1` with a *deferred*
-  relocation that the linker fills in with the label's **section-relative
-  offset** (`$2000` in the probe ROM, where `TBL` sits at `$802000` and
-  the section base is `$800000`). The effective address is therefore
-  `a0 + 0x2000` instead of `a0 + 0x802000`, i.e. the address is short
-  by the section base — which is why the read returned 0.
-* `move.w 0(a1,a0),d2` computed the address as `a1 + 1*a0` instead of
-  `a1 + 2*a0` for a word access — the effective address came out as
-  TBL+4 = `$2222` (TBL[1]) instead of TBL+8 = `$3333` (TBL[2]).
-
-In both cases `rmac -fb` reports **no error at all**, and `rln` links the
-result without complaint.
+| `cmp.w #5,d0` | `B0 7C 00 05` (CMP, immediate EA) | `0C 40 00 05` (CMPI.W) |
+| `cmp.l #5,d0` | `B0 BC 00 00 00 05` | `0C 80 00 00 00 05` |
+| `cmp.b #5,d0` | `B0 3C 00 05` | `0C 00 00 05` |
 
 ### Suggested fix
 
-* Implement the register+register form (`d(An,Am)`) with the index
-  register **and the word/long scale** in the extension word, i.e. the
-  scale bits must follow the access size.
-* For a label in an indexed form (`LABEL(An)`), either diagnose it or
-  encode it the way the hardware can express it — the 68000 has no
-  absolute-indexed MOVE, so the honest answer is "use
-  `move.l #LABEL,aN` + `move.w (aN),Dn`". Silently turning the label
-  into a section-relative displacement is the worst of the three.
-* `cmp #imm,Dn` should either assemble as `CMPI` (which is what every
-  68000 assembler does) or be rejected with a diagnostic.
-
-### Note on the linker
-
-`rln` (http://tiddly.mooo.com:5000/rln/rln.git, pinned at `a617009`)
-patches the deferred relocations correctly in every case that `rmac`
-survives. The mis-assemblies in 1 and 2 are entirely `rmac`'s; the
-linker faithfully links what it is given.
+Encode `cmp.{b,w,l} #imm,Dn` as `CMPI` (the natural reading of the
+source, and what every other 68000 assembler does), or reject the form
+with a diagnostic. Silently emitting an EA mode the instruction does not
+support is the one option that produces code which assembles, links and
+then does something else.
 
 ---
 
@@ -329,3 +263,22 @@ Kept here so they are not filed again, with the reason each was wrong.
   "fixed" build (0 differing pixels of 78240, 78566 and 104594). The
   commit that changed the mask to `0x3FC0000` truncated DWIDTH to eight
   bits and was dropped.
+
+* **"`move.w TBL(a0),d1` is assembled with a section-relative
+  displacement instead of the label's address."** — Withdrawn. rmac
+  emits the label's **absolute address truncated to 16 bits**, which is
+  the standard behaviour of every 68000 assembler for a form the
+  instruction cannot represent (there is no absolute-indexed MOVE).
+  Measured with the same source linked at two bases: at `$800000` the
+  displacement is `0003`, at `$800004` it is `0007` — i.e. the low 16
+  bits of `$800003`/`$800007`, not an offset from the section base.
+  The read lands in the wrong place because the base is dropped, but
+  that is inherent to `d16(An)`; a diagnostic would be a fair request,
+  a mis-assembly bug it is not.
+* **"`move.w 0(a1,a0),d2` loses the index scale, so the index is always
+  byte-scaled."** — Withdrawn, and it is not a defect: on the 68000 the
+  scale is an explicit part of the syntax, and `0(a1,a0)` means scale
+  x1. rmac encodes the scale correctly when it is written —
+  `0(a1,a0.w*2)` gives `34 31 82 00` (scale 01) and `0(a1,a0.l*4)`
+  gives `24 31 8C 00` (scale 10). The `$2222` the old probe read was
+  `TBL+2`, which is exactly what `x1` should give with an index of 2.
